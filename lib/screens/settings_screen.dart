@@ -216,11 +216,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(
-                  Icons.calendar_month,
-                  size: 64,
-                  color: Colors.deepPurple,
-                ),
+                Image.asset('assets/logo.png', width: 64, height: 64),
                 const SizedBox(height: 16),
                 const Text(
                   'Welcome to AnchorCal',
