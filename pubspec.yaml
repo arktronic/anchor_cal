@@ -41,16 +41,16 @@ dependencies:
   workmanager: ^0.9.0+3
   timezone: ^0.9.4
   shared_preferences: ^2.3.0
-  android_intent_plus: ^5.1.0
+  android_intent_plus: ^6.0.0
   crypto: ^3.0.3
   intl: ^0.20.2
-  package_info_plus: ^8.0.0
+  package_info_plus: ^9.0.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   mocktail: ^1.0.4
-  flutter_launcher_icons: ^0.14.3
+  flutter_launcher_icons: ^0.14.4
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
