@@ -12,11 +12,21 @@ class MockDismissedEventsStore extends Mock implements DismissedEventsStore {}
 class MockFlutterLocalNotificationsPlugin extends Mock
     implements FlutterLocalNotificationsPlugin {}
 
+class FakeTZDateTime extends Fake implements tz.TZDateTime {}
+
 void main() {
   tz.initializeTimeZones();
   final location = tz.getLocation('America/New_York');
+  tz.setLocalLocation(location);
   final baseStart = tz.TZDateTime(location, 2026, 2, 1, 10, 0);
   final baseEnd = tz.TZDateTime(location, 2026, 2, 1, 11, 0);
+
+  setUpAll(() {
+    registerFallbackValue(FakeTZDateTime());
+    registerFallbackValue(const NotificationDetails());
+    registerFallbackValue(AndroidScheduleMode.exactAllowWhileIdle);
+    registerFallbackValue(UILocalNotificationDateInterpretation.absoluteTime);
+  });
 
   Event createEvent({
     String? eventId = 'event-123',
@@ -150,6 +160,20 @@ void main() {
           payload: any(named: 'payload'),
         ),
       ).thenAnswer((_) async {});
+      when(
+        () => mockNotifications.zonedSchedule(
+          any(),
+          any(),
+          any(),
+          any(),
+          any(),
+          androidScheduleMode: any(named: 'androidScheduleMode'),
+          uiLocalNotificationDateInterpretation: any(
+            named: 'uiLocalNotificationDateInterpretation',
+          ),
+          payload: any(named: 'payload'),
+        ),
+      ).thenAnswer((_) async {});
     });
 
     Event createEventWithReminder({
@@ -264,7 +288,7 @@ void main() {
       ).called(1);
     });
 
-    test('skips notification if reminder time has not passed', () async {
+    test('schedules notification if reminder time has not passed', () async {
       final event = createEventWithReminder(
         start: tz.TZDateTime(location, 2026, 2, 1, 10, 0),
         end: tz.TZDateTime(location, 2026, 2, 1, 11, 0),
@@ -283,6 +307,7 @@ void main() {
       );
 
       expect(result, isNotEmpty); // Returns ID for orphan cleanup
+      // Should schedule, not show immediately
       verifyNever(
         () => mockNotifications.show(
           any(),
@@ -292,6 +317,20 @@ void main() {
           payload: any(named: 'payload'),
         ),
       );
+      verify(
+        () => mockNotifications.zonedSchedule(
+          any(),
+          any(),
+          any(),
+          any(),
+          any(),
+          androidScheduleMode: any(named: 'androidScheduleMode'),
+          uiLocalNotificationDateInterpretation: any(
+            named: 'uiLocalNotificationDateInterpretation',
+          ),
+          payload: any(named: 'payload'),
+        ),
+      ).called(1);
     });
 
     test('skips notification if already dismissed', () async {

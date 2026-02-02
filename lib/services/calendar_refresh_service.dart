@@ -1,8 +1,16 @@
+import 'dart:developer' as developer;
+import 'package:flutter/foundation.dart';
 import 'package:device_calendar/device_calendar.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'dismissed_events_store.dart';
 import 'event_processor.dart';
 import 'settings_service.dart';
+
+void _log(String message) {
+  if (kDebugMode) {
+    developer.log(message, name: 'AnchorCal');
+  }
+}
 
 /// Parsed notification action payload.
 class NotificationAction {
@@ -62,10 +70,11 @@ class CalendarRefreshService {
     try {
       final calendarsResult = await _calendarPlugin.retrieveCalendars();
       if (!calendarsResult.isSuccess) {
-        // Calendar access failed (permissions revoked, etc.)
+        _log('Failed to retrieve calendars');
         return validNotificationIds;
       }
       final calendars = calendarsResult.data ?? [];
+      _log('Found ${calendars.length} calendars');
 
       final now = DateTime.now();
       final start = now.subtract(const Duration(days: 1));
@@ -86,30 +95,52 @@ class CalendarRefreshService {
             RetrieveEventsParams(startDate: start, endDate: end),
           );
           final events = eventsResult.data ?? [];
+          _log('Calendar "${calendar.name}": ${events.length} events');
 
           for (final event in events) {
+            final reminders = event.reminders ?? [];
+            _log(
+              '  Event "${event.title}": ${reminders.length} reminders, start=${event.start}',
+            );
             final processedIds = await processor.processEvent(event, now);
+            if (processedIds.isNotEmpty) {
+              _log('    Processed IDs: $processedIds');
+            }
             validNotificationIds.addAll(processedIds);
           }
-        } catch (_) {
-          // Skip this calendar on error, continue with others
+        } catch (e) {
+          _log('Error processing calendar ${calendar.name}: $e');
           continue;
         }
       }
-    } catch (_) {
-      // Calendar plugin error - return empty set (no orphan cleanup)
+      _log('Total valid notification IDs: ${validNotificationIds.length}');
+    } catch (e, st) {
+      _log('Calendar plugin error: $e\n$st');
     }
 
     return validNotificationIds;
   }
 
   /// Cancel notifications that no longer correspond to calendar events.
+  /// Cancels both active (visible) and pending (scheduled) notifications.
   Future<void> cancelOrphanedNotifications(Set<int> validIds) async {
+    // Cancel orphaned active notifications
     final activeNotifications = await _notificationsPlugin
         .getActiveNotifications();
     for (final notification in activeNotifications) {
       if (!validIds.contains(notification.id)) {
+        _log('Cancelling orphaned active notification: ${notification.id}');
         await _notificationsPlugin.cancel(notification.id!);
+      }
+    }
+
+    // Cancel orphaned pending (scheduled) notifications
+    final pendingNotifications = await _notificationsPlugin
+        .pendingNotificationRequests();
+    for (final notification in pendingNotifications) {
+      if (!validIds.contains(notification.id)) {
+        _log('Cancelling orphaned pending notification: ${notification.id}');
+        await _notificationsPlugin.cancel(notification.id);
       }
     }
   }

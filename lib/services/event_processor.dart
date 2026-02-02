@@ -1,9 +1,18 @@
 import 'dart:convert';
+import 'dart:developer' as developer;
+import 'package:flutter/foundation.dart';
 import 'package:crypto/crypto.dart';
 import 'package:device_calendar/device_calendar.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:intl/intl.dart';
+import 'package:timezone/timezone.dart' as tz;
 import 'dismissed_events_store.dart';
+
+void _log(String message) {
+  if (kDebugMode) {
+    developer.log(message, name: 'AnchorCal');
+  }
+}
 
 /// Shared event processing logic for both foreground and background contexts.
 class EventProcessor {
@@ -81,47 +90,97 @@ class EventProcessor {
       final reminderHash = computeEventHash(event, reminderMinutes: minutes);
       processedIds.add(reminderHash.hashCode);
 
-      // Skip if not yet time for this reminder
-      if (reminderTime.isAfter(now)) continue;
-
       // Skip reminders that were due before the app was first run.
       // We filter by reminder time (not event time) intentionally:
       // - Avoids confusing "late" reminders arriving hours after they were due
       // - Prevents a flood of stale reminders on first run
       // - Future reminders for the same event will still fire correctly
       final firstRun = _firstRunTimestamp;
-      if (firstRun != null && reminderTime.isBefore(firstRun)) continue;
+      if (firstRun != null && reminderTime.isBefore(firstRun)) {
+        _log(
+          '    Reminder $minutes min: before first run (reminder=$reminderTime, firstRun=$firstRun)',
+        );
+        continue;
+      }
 
       // Skip if already dismissed
-      if (await _dismissedStore.isDismissed(reminderHash)) continue;
+      if (await _dismissedStore.isDismissed(reminderHash)) {
+        _log('    Reminder $minutes min: already dismissed');
+        continue;
+      }
 
-      // Skip if snoozed
+      // Skip if snoozed (but still schedule if snooze will expire before reminder)
       final snoozedUntil = await _dismissedStore.getSnoozedUntil(reminderHash);
-      if (snoozedUntil != null && now.isBefore(snoozedUntil)) continue;
+      if (snoozedUntil != null && now.isBefore(snoozedUntil)) {
+        _log('    Reminder $minutes min: snoozed until $snoozedUntil');
+        continue;
+      }
 
-      // Show notification for this reminder
-      await _showNotification(
-        eventId: eventId,
-        eventHash: reminderHash,
-        eventStart: eventStart,
-        eventEnd: eventEnd,
-        title: event.title ?? 'Calendar Event',
-        body: fullBody,
-      );
+      // Schedule future reminder or show immediately if already due
+      if (reminderTime.isAfter(now)) {
+        _log('    Reminder $minutes min: SCHEDULING for $reminderTime');
+        await _scheduleNotification(
+          eventId: eventId,
+          eventHash: reminderHash,
+          eventStart: eventStart,
+          eventEnd: eventEnd,
+          scheduledTime: reminderTime,
+          title: event.title ?? 'Calendar Event',
+          body: fullBody,
+        );
+      } else {
+        _log('    Reminder $minutes min: SHOWING notification!');
+        await _showNotification(
+          eventId: eventId,
+          eventHash: reminderHash,
+          eventStart: eventStart,
+          eventEnd: eventEnd,
+          title: event.title ?? 'Calendar Event',
+          body: fullBody,
+        );
+      }
     }
 
     return processedIds;
   }
 
-  Future<void> _showNotification({
+  /// Schedule a notification for a future time.
+  Future<void> _scheduleNotification({
     required String eventId,
     required String eventHash,
     required DateTime eventStart,
     required DateTime eventEnd,
+    required DateTime scheduledTime,
     required String title,
     required String body,
   }) async {
-    final androidDetails = AndroidNotificationDetails(
+    final androidDetails = _buildAndroidDetails(eventId, eventHash, eventEnd);
+
+    // Convert to TZDateTime for scheduling
+    final tzScheduledTime = scheduledTime is tz.TZDateTime
+        ? scheduledTime
+        : tz.TZDateTime.from(scheduledTime, tz.local);
+
+    await _notificationsPlugin.zonedSchedule(
+      eventHash.hashCode,
+      title,
+      body,
+      tzScheduledTime,
+      NotificationDetails(android: androidDetails),
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
+      payload: 'open|$eventId|$eventHash|${eventEnd.millisecondsSinceEpoch}',
+    );
+  }
+
+  /// Build Android notification details (shared by show and schedule).
+  AndroidNotificationDetails _buildAndroidDetails(
+    String eventId,
+    String eventHash,
+    DateTime eventEnd,
+  ) {
+    return AndroidNotificationDetails(
       channelId,
       channelName,
       channelDescription: channelDescription,
@@ -147,6 +206,17 @@ class EventProcessor {
         ),
       ],
     );
+  }
+
+  Future<void> _showNotification({
+    required String eventId,
+    required String eventHash,
+    required DateTime eventStart,
+    required DateTime eventEnd,
+    required String title,
+    required String body,
+  }) async {
+    final androidDetails = _buildAndroidDetails(eventId, eventHash, eventEnd);
 
     await _notificationsPlugin.show(
       eventHash.hashCode,

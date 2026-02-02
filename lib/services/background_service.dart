@@ -1,9 +1,18 @@
+import 'dart:developer' as developer;
+import 'package:flutter/foundation.dart';
 import 'package:workmanager/workmanager.dart';
 import 'package:device_calendar/device_calendar.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:timezone/data/latest.dart' as tz;
 import 'dismissed_events_store.dart';
 import 'calendar_refresh_service.dart';
 import 'settings_service.dart';
+
+void _log(String message) {
+  if (kDebugMode) {
+    developer.log(message, name: 'AnchorCal');
+  }
+}
 
 const String _taskName = 'anchorCalRefresh';
 const String _taskUniqueName = 'com.arktronic.anchor_cal.refresh';
@@ -62,11 +71,16 @@ void callbackDispatcher() {
 /// Wrapped in try-catch to prevent WorkManager task failures.
 Future<void> _refreshNotificationsInBackground() async {
   try {
+    _log('Background refresh starting...');
+    tz.initializeTimeZones();
     final calendarPlugin = DeviceCalendarPlugin();
     final notificationsPlugin = FlutterLocalNotificationsPlugin();
 
     // Initialize settings service for background context
     await SettingsService.instance.init();
+    _log(
+      'Settings initialized, firstRun: ${SettingsService.instance.firstRunTimestamp}',
+    );
 
     // Initialize notifications with background response handler
     const androidSettings = AndroidInitializationSettings(
@@ -82,7 +96,11 @@ Future<void> _refreshNotificationsInBackground() async {
 
     // Check calendar permissions
     final permResult = await calendarPlugin.hasPermissions();
-    if (!(permResult.data ?? false)) return;
+    _log('Calendar permissions: ${permResult.data}');
+    if (!(permResult.data ?? false)) {
+      _log('No calendar permissions, aborting');
+      return;
+    }
 
     final dismissedStore = DismissedEventsStore.instance;
 
@@ -99,8 +117,9 @@ Future<void> _refreshNotificationsInBackground() async {
     );
 
     await refreshService.fullRefresh();
-  } catch (_) {
-    // Silently fail - WorkManager will retry on next scheduled run
+    _log('Background refresh completed successfully');
+  } catch (e, st) {
+    _log('Background refresh error: $e\n$st');
   }
 }
 

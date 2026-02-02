@@ -40,7 +40,51 @@ void main() {
       await service.fullRefresh();
 
       verifyNever(() => mockNotifications.getActiveNotifications());
+      verifyNever(() => mockNotifications.pendingNotificationRequests());
       verifyNever(() => mockNotifications.cancel(any()));
+    });
+  });
+
+  group('CalendarRefreshService.cancelOrphanedNotifications', () {
+    test('cancels both orphaned active and pending notifications', () async {
+      final validIds = {100, 200};
+
+      // Active notifications: 100 (valid), 300 (orphan)
+      when(() => mockNotifications.getActiveNotifications()).thenAnswer(
+        (_) async => [
+          const ActiveNotification(id: 100, title: 'Valid', body: ''),
+          const ActiveNotification(id: 300, title: 'Orphan Active', body: ''),
+        ],
+      );
+
+      // Pending notifications: 200 (valid), 400 (orphan)
+      when(() => mockNotifications.pendingNotificationRequests()).thenAnswer(
+        (_) async => [
+          const PendingNotificationRequest(200, 'Valid', 'body', 'payload'),
+          const PendingNotificationRequest(
+            400,
+            'Orphan Pending',
+            'body',
+            'payload',
+          ),
+        ],
+      );
+
+      when(() => mockNotifications.cancel(any())).thenAnswer((_) async {});
+
+      final service = CalendarRefreshService(
+        calendarPlugin: mockCalendar,
+        notificationsPlugin: mockNotifications,
+        dismissedStore: mockStore,
+      );
+
+      await service.cancelOrphanedNotifications(validIds);
+
+      // Should cancel orphans but not valid IDs
+      verify(() => mockNotifications.cancel(300)).called(1);
+      verify(() => mockNotifications.cancel(400)).called(1);
+      verifyNever(() => mockNotifications.cancel(100));
+      verifyNever(() => mockNotifications.cancel(200));
     });
   });
 }

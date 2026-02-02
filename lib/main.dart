@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:timezone/data/latest.dart' as tz;
 
 import 'services/event_monitor_service.dart';
 import 'services/background_service.dart';
@@ -10,6 +11,7 @@ import 'screens/settings_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  tz.initializeTimeZones();
   await SettingsService.instance.init();
   await EventMonitorService.instance.init();
   await BackgroundService.instance.init();

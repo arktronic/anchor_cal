@@ -4,6 +4,8 @@
 - **Core Flow:**
   - Background service monitors Android calendar for events
   - For each active event, post a persistent notification
+  - Future reminders are scheduled in advance using exact alarms (`zonedSchedule`)
+  - Past-due reminders show immediately
   - Notification persists after event ends until user dismisses (swipe/button)
 - **Persistence:**
   - Notifications survive device reboots via native `BootReceiver` that invokes Flutter callback
@@ -14,6 +16,8 @@
   - Read-only access to all user calendars via Android calendar provider
 - **Notifications:**
   - Standard Android notifications, persistent (ongoing)
+  - Future reminders scheduled via `zonedSchedule` for precise timing
+  - Orphan cleanup cancels both active and pending scheduled notifications
   - Dismissal via swipe or notification action
 - **UI:**
   - Minimal: settings screen only
