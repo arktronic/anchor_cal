@@ -184,6 +184,8 @@ class EventProcessor {
       channelId,
       channelName,
       channelDescription: channelDescription,
+      icon: '@drawable/ic_notification',
+      category: AndroidNotificationCategory.event,
       importance: Importance.high,
       priority: Priority.high,
       ongoing: true,

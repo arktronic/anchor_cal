@@ -1,0 +1,17 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="100" android:viewportHeight="100">
+	<!-- Calendar outline -->
+	<path android:strokeColor="#FFFFFF" android:strokeWidth="3" android:fillColor="@android:color/transparent" android:pathData="M9,19h82v72a9,9 0,0 1,-9 9H18a9,9 0,0 1,-9 -9z" />
+	<path android:strokeColor="#FFFFFF" android:strokeWidth="3" android:fillColor="@android:color/transparent" android:pathData="M24,11h10v12a4,4 0,0 1,-4 4h-2a4,4 0,0 1,-4 -4z" />
+	<path android:strokeColor="#FFFFFF" android:strokeWidth="3" android:fillColor="@android:color/transparent" android:pathData="M66,11h10v12a4,4 0,0 1,-4 4h-2a4,4 0,0 1,-4 -4z" />
+	<!-- Anchor (tilted 15 degrees) -->
+	<group android:pivotX="50" android:pivotY="63" android:translateY="3" android:rotation="-15">
+		<!-- Ring at top -->
+		<path android:fillColor="@android:color/transparent" android:strokeColor="#FFFFFF" android:strokeWidth="5" android:strokeLineCap="round" android:pathData="M50,39a5,5 0,1 1,0 10a5,5 0,1 1,0 -10" />
+		<!-- Vertical shank -->
+		<path android:strokeColor="#FFFFFF" android:strokeWidth="5" android:strokeLineCap="round" android:pathData="M50,49L50,80" />
+		<!-- Horizontal stock -->
+		<path android:strokeColor="#FFFFFF" android:strokeWidth="5" android:strokeLineCap="round" android:pathData="M36,52L64,52" />
+		<!-- Flukes -->
+		<path android:strokeColor="#FFFFFF" android:strokeWidth="5" android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="@android:color/transparent" android:pathData="M30,68C34,80 46,80 50,80C54,80 66,80 70,68" />
+	</group>
+</vector>
