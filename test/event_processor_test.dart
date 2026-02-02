@@ -249,7 +249,7 @@ void main() {
       // Now is 10:00, reminder was due at 9:45
       final result = await processor.processEvent(
         event,
-        DateTime(2026, 2, 1, 10, 0),
+        tz.TZDateTime(location, 2026, 2, 1, 10, 0),
       );
 
       expect(result, isNotEmpty);
@@ -279,7 +279,7 @@ void main() {
       // Now is 9:30, reminder is due at 9:45
       final result = await processor.processEvent(
         event,
-        DateTime(2026, 2, 1, 9, 30),
+        tz.TZDateTime(location, 2026, 2, 1, 9, 30),
       );
 
       expect(result, isNotEmpty); // Returns ID for orphan cleanup
@@ -307,7 +307,10 @@ void main() {
         notificationsPlugin: mockNotifications,
       );
 
-      await processor.processEvent(event, DateTime(2026, 2, 1, 10, 0));
+      await processor.processEvent(
+        event,
+        tz.TZDateTime(location, 2026, 2, 1, 10, 0),
+      );
 
       verifyNever(
         () => mockNotifications.show(
@@ -326,7 +329,7 @@ void main() {
         end: tz.TZDateTime(location, 2026, 2, 1, 11, 0),
       );
 
-      final snoozeUntil = DateTime(2026, 2, 1, 10, 30);
+      final snoozeUntil = tz.TZDateTime(location, 2026, 2, 1, 10, 30);
       when(
         () => mockStore.getSnoozedUntil(any()),
       ).thenAnswer((_) async => snoozeUntil);
@@ -337,7 +340,10 @@ void main() {
       );
 
       // Before snooze ends - should not show
-      await processor.processEvent(event, DateTime(2026, 2, 1, 10, 0));
+      await processor.processEvent(
+        event,
+        tz.TZDateTime(location, 2026, 2, 1, 10, 0),
+      );
       verifyNever(
         () => mockNotifications.show(
           any(),
@@ -349,7 +355,10 @@ void main() {
       );
 
       // After snooze ends - should show
-      await processor.processEvent(event, DateTime(2026, 2, 1, 10, 45));
+      await processor.processEvent(
+        event,
+        tz.TZDateTime(location, 2026, 2, 1, 10, 45),
+      );
       verify(
         () => mockNotifications.show(
           any(),
@@ -371,10 +380,20 @@ void main() {
       final processor = EventProcessor(
         dismissedStore: mockStore,
         notificationsPlugin: mockNotifications,
-        firstRunTimestamp: DateTime(2026, 2, 1, 9, 50), // App started at 9:50
+        firstRunTimestamp: tz.TZDateTime(
+          location,
+          2026,
+          2,
+          1,
+          9,
+          50,
+        ), // App started at 9:50
       );
 
-      await processor.processEvent(event, DateTime(2026, 2, 1, 10, 0));
+      await processor.processEvent(
+        event,
+        tz.TZDateTime(location, 2026, 2, 1, 10, 0),
+      );
 
       verifyNever(
         () => mockNotifications.show(
@@ -404,7 +423,7 @@ void main() {
 
       final result = await processor.processEvent(
         event,
-        DateTime(2026, 2, 1, 10, 0),
+        tz.TZDateTime(location, 2026, 2, 1, 10, 0),
       );
 
       expect(result.length, equals(2));
