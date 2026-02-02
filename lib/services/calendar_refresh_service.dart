@@ -87,13 +87,21 @@ class CalendarRefreshService {
       );
 
       for (final calendar in calendars) {
-        if (calendar.id == null) continue;
+        if (calendar.id == null) {
+          _log('Skipping calendar "${calendar.name}" - null id');
+          continue;
+        }
 
         try {
+          _log('Processing calendar "${calendar.name}" (id=${calendar.id})');
           final eventsResult = await _calendarPlugin.retrieveEvents(
             calendar.id,
             RetrieveEventsParams(startDate: start, endDate: end),
           );
+          if (!eventsResult.isSuccess) {
+            _log('  Failed to retrieve events: ${eventsResult.errors}');
+            continue;
+          }
           final events = eventsResult.data ?? [];
           _log('Calendar "${calendar.name}": ${events.length} events');
 
