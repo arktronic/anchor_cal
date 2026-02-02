@@ -1,0 +1,17 @@
+{
+	"chat.tools.terminal.autoApprove": {
+		"/^flutter test$/": {
+			"approve": true,
+			"matchCommandLine": true
+		},
+		"/^flutter analyze$/": {
+			"approve": true,
+			"matchCommandLine": true
+		}
+	},
+	"editor.formatOnSave": true,
+	"[dart]": {
+		"editor.formatOnSave": true,
+		"editor.defaultFormatter": "Dart-Code.dart-code"
+	}
+}

@@ -1,0 +1,30 @@
+# Architecture: AnchorCal
+
+- **Platform:** Android-only, Flutter
+- **Core Flow:**
+  - Background service monitors Android calendar for events
+  - For each active event, post a persistent notification
+  - Notification persists after event ends until user dismisses (swipe/button)
+- **Persistence:**
+  - Notifications survive device reboots via native `BootReceiver` that invokes Flutter callback
+  - On boot: receiver enqueues workmanager task → runs same Dart code as periodic refresh
+  - Dismissal state stored locally in SharedPreferences (no internet, no SQLite dependency)
+  - Content hash (SHA-1 of event fields) used as key for each event/reminder occurrence
+- **Calendar Integration:**
+  - Read-only access to all user calendars via Android calendar provider
+- **Notifications:**
+  - Standard Android notifications, persistent (ongoing)
+  - Dismissal via swipe or notification action
+- **UI:**
+  - Minimal: settings screen only
+- **Privacy:**
+  - No network access, all data local
+- **Dependencies:**
+  - `device_calendar` - calendar read access
+  - `workmanager` - background periodic tasks
+  - `flutter_local_notifications` - persistent notifications with actions
+  - `shared_preferences` - dismissal/snooze state storage
+  - `permission_handler` - runtime permission requests
+  - `android_intent_plus` - launch calendar app
+  - `crypto` - SHA-1 hashing for event identity
+  - `package_info_plus` - app version display in settings
