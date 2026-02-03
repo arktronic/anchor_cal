@@ -37,7 +37,7 @@ dependencies:
 
   device_calendar: ^4.3.3
   permission_handler: ^12.0.1
-  flutter_local_notifications: ^18.0.1
+  awesome_notifications: ^0.10.0
   workmanager: ^0.9.0+3
   timezone: ^0.9.4
   shared_preferences: ^2.3.0

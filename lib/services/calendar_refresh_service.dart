@@ -1,7 +1,7 @@
 import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart';
 import 'package:device_calendar/device_calendar.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:awesome_notifications/awesome_notifications.dart';
 import 'dismissed_events_store.dart';
 import 'event_processor.dart';
 import 'settings_service.dart';
@@ -51,15 +51,12 @@ class NotificationAction {
 /// Shared calendar refresh logic for foreground and background execution.
 class CalendarRefreshService {
   final DeviceCalendarPlugin _calendarPlugin;
-  final FlutterLocalNotificationsPlugin _notificationsPlugin;
   final DismissedEventsStore _dismissedStore;
 
   CalendarRefreshService({
     DeviceCalendarPlugin? calendarPlugin,
-    required FlutterLocalNotificationsPlugin notificationsPlugin,
     required DismissedEventsStore dismissedStore,
   }) : _calendarPlugin = calendarPlugin ?? DeviceCalendarPlugin(),
-       _notificationsPlugin = notificationsPlugin,
        _dismissedStore = dismissedStore;
 
   /// Refresh notifications for all active events across all calendars.
@@ -82,7 +79,6 @@ class CalendarRefreshService {
 
       final processor = EventProcessor(
         dismissedStore: _dismissedStore,
-        notificationsPlugin: _notificationsPlugin,
         firstRunTimestamp: SettingsService.instance.firstRunTimestamp,
       );
 
@@ -132,23 +128,14 @@ class CalendarRefreshService {
   /// Cancel notifications that no longer correspond to calendar events.
   /// Cancels both active (visible) and pending (scheduled) notifications.
   Future<void> cancelOrphanedNotifications(Set<int> validIds) async {
-    // Cancel orphaned active notifications
-    final activeNotifications = await _notificationsPlugin
-        .getActiveNotifications();
-    for (final notification in activeNotifications) {
-      if (!validIds.contains(notification.id)) {
-        _log('Cancelling orphaned active notification: ${notification.id}');
-        await _notificationsPlugin.cancel(notification.id!);
-      }
-    }
-
-    // Cancel orphaned pending (scheduled) notifications
-    final pendingNotifications = await _notificationsPlugin
-        .pendingNotificationRequests();
-    for (final notification in pendingNotifications) {
-      if (!validIds.contains(notification.id)) {
-        _log('Cancelling orphaned pending notification: ${notification.id}');
-        await _notificationsPlugin.cancel(notification.id);
+    // Get all scheduled notifications
+    final scheduledNotifications = await AwesomeNotifications()
+        .listScheduledNotifications();
+    for (final notification in scheduledNotifications) {
+      final id = notification.content?.id;
+      if (id != null && !validIds.contains(id)) {
+        _log('Cancelling orphaned scheduled notification: $id');
+        await AwesomeNotifications().cancel(id);
       }
     }
   }

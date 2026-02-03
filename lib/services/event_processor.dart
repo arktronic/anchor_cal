@@ -3,9 +3,8 @@ import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart';
 import 'package:crypto/crypto.dart';
 import 'package:device_calendar/device_calendar.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:awesome_notifications/awesome_notifications.dart';
 import 'package:intl/intl.dart';
-import 'package:timezone/timezone.dart' as tz;
 import 'dismissed_events_store.dart';
 
 void _log(String message) {
@@ -17,29 +16,26 @@ void _log(String message) {
 /// Shared event processing logic for both foreground and background contexts.
 class EventProcessor {
   final DismissedEventsStore _dismissedStore;
-  final FlutterLocalNotificationsPlugin _notificationsPlugin;
   final DateTime? _firstRunTimestamp;
 
-  static const String channelId = 'anchor_cal_events';
+  static const String channelKey = 'anchorcal_events';
   static const String channelName = 'Calendar Events';
-  static const String channelDescription =
-      'Persistent notifications for calendar events';
+  static const String channelDescription = 'Notifications for calendar events';
 
   EventProcessor({
     required DismissedEventsStore dismissedStore,
-    required FlutterLocalNotificationsPlugin notificationsPlugin,
     DateTime? firstRunTimestamp,
   }) : _dismissedStore = dismissedStore,
-       _notificationsPlugin = notificationsPlugin,
        _firstRunTimestamp = firstRunTimestamp;
 
-  /// Compute a deterministic hash of event identity and mutable fields.
-  /// Includes eventId so each occurrence of a recurring event has unique hash.
+  /// Compute a deterministic hash of event content and timing.
+  /// Uses calendarId + title + start + end to identify occurrences.
+  /// Excludes eventId since it can change during Exchange/Outlook sync.
   /// If [reminderMinutes] is provided, includes it to make each reminder unique.
   /// Uses SHA-1 for consistent hashing across app restarts.
   static String computeEventHash(Event event, {int? reminderMinutes}) {
     final str = [
-      event.eventId ?? '',
+      event.calendarId ?? '',
       event.title ?? '',
       event.start?.millisecondsSinceEpoch.toString() ?? '',
       event.end?.millisecondsSinceEpoch.toString() ?? '',
@@ -88,13 +84,10 @@ class EventProcessor {
 
       final reminderTime = eventStart.subtract(Duration(minutes: minutes));
       final reminderHash = computeEventHash(event, reminderMinutes: minutes);
-      processedIds.add(reminderHash.hashCode);
+      final notificationId = reminderHash.hashCode.abs() % 2147483647;
+      processedIds.add(notificationId);
 
       // Skip reminders that were due before the app was first run.
-      // We filter by reminder time (not event time) intentionally:
-      // - Avoids confusing "late" reminders arriving hours after they were due
-      // - Prevents a flood of stale reminders on first run
-      // - Future reminders for the same event will still fire correctly
       final firstRun = _firstRunTimestamp;
       if (firstRun != null && reminderTime.isBefore(firstRun)) {
         _log(
@@ -109,34 +102,37 @@ class EventProcessor {
         continue;
       }
 
-      // Skip if snoozed (but still schedule if snooze will expire before reminder)
+      // Skip if snoozed
       final snoozedUntil = await _dismissedStore.getSnoozedUntil(reminderHash);
       if (snoozedUntil != null && now.isBefore(snoozedUntil)) {
         _log('    Reminder $minutes min: snoozed until $snoozedUntil');
         continue;
       }
 
+      // Build payload for action handling
+      final payload = {
+        'eventId': eventId,
+        'eventHash': reminderHash,
+        'eventEnd': eventEnd.millisecondsSinceEpoch.toString(),
+      };
+
       // Schedule future reminder or show immediately if already due
       if (reminderTime.isAfter(now)) {
         _log('    Reminder $minutes min: SCHEDULING for $reminderTime');
         await _scheduleNotification(
-          eventId: eventId,
-          eventHash: reminderHash,
-          eventStart: eventStart,
-          eventEnd: eventEnd,
+          notificationId: notificationId,
           scheduledTime: reminderTime,
           title: event.title ?? 'Calendar Event',
           body: fullBody,
+          payload: payload,
         );
       } else {
         _log('    Reminder $minutes min: SHOWING notification!');
         await _showNotification(
-          eventId: eventId,
-          eventHash: reminderHash,
-          eventStart: eventStart,
-          eventEnd: eventEnd,
+          notificationId: notificationId,
           title: event.title ?? 'Calendar Event',
           body: fullBody,
+          payload: payload,
         );
       }
     }
@@ -146,87 +142,73 @@ class EventProcessor {
 
   /// Schedule a notification for a future time.
   Future<void> _scheduleNotification({
-    required String eventId,
-    required String eventHash,
-    required DateTime eventStart,
-    required DateTime eventEnd,
+    required int notificationId,
     required DateTime scheduledTime,
     required String title,
     required String body,
+    required Map<String, String> payload,
   }) async {
-    final androidDetails = _buildAndroidDetails(eventId, eventHash, eventEnd);
-
-    // Convert to TZDateTime for scheduling
-    final tzScheduledTime = scheduledTime is tz.TZDateTime
-        ? scheduledTime
-        : tz.TZDateTime.from(scheduledTime, tz.local);
-
-    await _notificationsPlugin.zonedSchedule(
-      eventHash.hashCode,
-      title,
-      body,
-      tzScheduledTime,
-      NotificationDetails(android: androidDetails),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-      uiLocalNotificationDateInterpretation:
-          UILocalNotificationDateInterpretation.absoluteTime,
-      payload: 'open|$eventId|$eventHash|${eventEnd.millisecondsSinceEpoch}',
-    );
-  }
-
-  /// Build Android notification details (shared by show and schedule).
-  AndroidNotificationDetails _buildAndroidDetails(
-    String eventId,
-    String eventHash,
-    DateTime eventEnd,
-  ) {
-    return AndroidNotificationDetails(
-      channelId,
-      channelName,
-      channelDescription: channelDescription,
-      icon: '@drawable/ic_notification',
-      category: AndroidNotificationCategory.event,
-      importance: Importance.high,
-      priority: Priority.high,
-      ongoing: true,
-      autoCancel: false,
-      onlyAlertOnce: true, // Don't re-alert on updates
-      groupKey: eventId, // Unique per event to prevent auto-bundling
-      actions: [
-        AndroidNotificationAction(
-          'open|$eventId|$eventHash|${eventEnd.millisecondsSinceEpoch}',
-          'Open',
-          showsUserInterface: true,
-        ),
-        AndroidNotificationAction(
-          'snooze|$eventId|$eventHash|${eventEnd.millisecondsSinceEpoch}',
-          'Snooze',
-        ),
-        AndroidNotificationAction(
-          'dismiss|$eventId|$eventHash|${eventEnd.millisecondsSinceEpoch}',
-          'Dismiss',
-        ),
-      ],
+    await AwesomeNotifications().createNotification(
+      content: NotificationContent(
+        id: notificationId,
+        channelKey: channelKey,
+        title: title,
+        body: body,
+        category: NotificationCategory.Event,
+        notificationLayout: NotificationLayout.Default,
+        payload: payload,
+        autoDismissible: false,
+        locked: false,
+      ),
+      actionButtons: _buildActionButtons(),
+      schedule: NotificationCalendar.fromDate(
+        date: scheduledTime,
+        preciseAlarm: true,
+        allowWhileIdle: true,
+      ),
     );
   }
 
   Future<void> _showNotification({
-    required String eventId,
-    required String eventHash,
-    required DateTime eventStart,
-    required DateTime eventEnd,
+    required int notificationId,
     required String title,
     required String body,
+    required Map<String, String> payload,
   }) async {
-    final androidDetails = _buildAndroidDetails(eventId, eventHash, eventEnd);
-
-    await _notificationsPlugin.show(
-      eventHash.hashCode,
-      title,
-      body,
-      NotificationDetails(android: androidDetails),
-      payload: 'open|$eventId|$eventHash|${eventEnd.millisecondsSinceEpoch}',
+    await AwesomeNotifications().createNotification(
+      content: NotificationContent(
+        id: notificationId,
+        channelKey: channelKey,
+        title: title,
+        body: body,
+        category: NotificationCategory.Event,
+        notificationLayout: NotificationLayout.Default,
+        payload: payload,
+        autoDismissible: false,
+        locked: false,
+      ),
+      actionButtons: _buildActionButtons(),
     );
+  }
+
+  List<NotificationActionButton> _buildActionButtons() {
+    return [
+      NotificationActionButton(
+        key: 'open',
+        label: 'Open',
+        actionType: ActionType.Default,
+      ),
+      NotificationActionButton(
+        key: 'snooze',
+        label: 'Snooze',
+        actionType: ActionType.SilentAction,
+      ),
+      NotificationActionButton(
+        key: 'dismiss',
+        label: 'Dismiss',
+        actionType: ActionType.DismissAction,
+      ),
+    ];
   }
 
   String _formatTime(DateTime dt) {

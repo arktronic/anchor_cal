@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:timezone/data/latest.dart' as tz;
+import 'package:awesome_notifications/awesome_notifications.dart';
 
 import 'services/event_monitor_service.dart';
 import 'services/background_service.dart';
@@ -11,7 +9,6 @@ import 'screens/settings_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  tz.initializeTimeZones();
   await SettingsService.instance.init();
   await EventMonitorService.instance.init();
   await BackgroundService.instance.init();
@@ -21,14 +18,11 @@ void main() async {
   }
 
   // Check if app was launched from a notification tap
-  final launchDetails = await FlutterLocalNotificationsPlugin()
-      .getNotificationAppLaunchDetails();
-  if (launchDetails?.didNotificationLaunchApp ?? false) {
-    final response = launchDetails!.notificationResponse;
-    if (response != null) {
-      await EventMonitorService.instance.handleNotificationAction(response);
-    }
-    SystemNavigator.pop();
+  final launchAction = await AwesomeNotifications()
+      .getInitialNotificationAction();
+  if (launchAction != null) {
+    // Handle the action that launched the app
+    await EventMonitorService.instance.handleAction(launchAction);
     return;
   }
 

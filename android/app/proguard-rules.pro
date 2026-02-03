@@ -2,8 +2,10 @@
 # See: https://github.com/builttoroam/device_calendar/issues/99
 -keep class com.builttoroam.devicecalendar.** { *; }
 
-# flutter_local_notifications plugin
-## Gson rules
+# awesome_notifications plugin
+-keep class me.carda.awesome_notifications.** { *; }
+
+## Gson rules (used by awesome_notifications)
 # Gson uses generic type information stored in a class file when working with fields. Proguard
 # removes such information by default, so configure it to keep all of it.
 -keepattributes Signature
@@ -11,7 +13,6 @@
 -keepattributes *Annotation*
 # Gson specific classes
 -dontwarn sun.misc.**
-#-keep class com.google.gson.stream.** { *; }
 # Prevent proguard from stripping interface information from TypeAdapter, TypeAdapterFactory,
 # JsonSerializer, JsonDeserializer instances (so they can be used in @JsonAdapter)
 -keep class * extends com.google.gson.TypeAdapter

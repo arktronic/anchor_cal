@@ -1,12 +1,13 @@
 import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:workmanager/workmanager.dart';
 import 'package:device_calendar/device_calendar.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:timezone/data/latest.dart' as tz;
+import 'package:awesome_notifications/awesome_notifications.dart';
 import 'dismissed_events_store.dart';
 import 'calendar_refresh_service.dart';
 import 'settings_service.dart';
+import 'event_processor.dart';
 
 void _log(String message) {
   if (kDebugMode) {
@@ -17,44 +18,6 @@ void _log(String message) {
 const String _taskName = 'anchorCalRefresh';
 const String _taskUniqueName = 'com.arktronic.anchor_cal.refresh';
 const String _snoozeTaskName = 'anchorCalSnoozeWakeup';
-
-/// Background notification response handler - must be top-level function.
-@pragma('vm:entry-point')
-@pragma('vm:entry-point')
-Future<void> onBackgroundNotificationResponse(
-  NotificationResponse response,
-) async {
-  try {
-    final payload = response.actionId ?? response.payload;
-    final action = NotificationAction.parse(payload);
-    if (action == null) return;
-
-    await _handleBackgroundAction(action);
-  } catch (_) {
-    // Silently fail - notification action in background isolate
-  }
-}
-
-Future<void> _handleBackgroundAction(NotificationAction action) async {
-  final dismissedStore = DismissedEventsStore.instance;
-  final notificationsPlugin = FlutterLocalNotificationsPlugin();
-
-  if (action.action == 'dismiss') {
-    await dismissedStore.dismiss(action.eventHash, action.eventEnd);
-    await notificationsPlugin.cancel(action.eventHash.hashCode);
-  } else if (action.action == 'snooze') {
-    final settings = SettingsService.instance;
-    await settings.init();
-    final snoozeDuration = Duration(minutes: settings.snoozeDurationMinutes);
-    final until = DateTime.now().add(snoozeDuration);
-    await dismissedStore.snooze(action.eventHash, action.eventEnd, until);
-    await notificationsPlugin.cancel(action.eventHash.hashCode);
-    await BackgroundService.instance.scheduleSnoozeWakeup(
-      action.eventHash,
-      snoozeDuration,
-    );
-  }
-}
 
 /// Callback dispatcher for background work - must be top-level function.
 @pragma('vm:entry-point')
@@ -72,9 +35,7 @@ void callbackDispatcher() {
 Future<void> _refreshNotificationsInBackground() async {
   try {
     _log('Background refresh starting...');
-    tz.initializeTimeZones();
     final calendarPlugin = DeviceCalendarPlugin();
-    final notificationsPlugin = FlutterLocalNotificationsPlugin();
 
     // Initialize settings service for background context
     await SettingsService.instance.init();
@@ -82,17 +43,19 @@ Future<void> _refreshNotificationsInBackground() async {
       'Settings initialized, firstRun: ${SettingsService.instance.firstRunTimestamp}',
     );
 
-    // Initialize notifications with background response handler
-    const androidSettings = AndroidInitializationSettings(
-      '@mipmap/ic_launcher',
-    );
-    const initSettings = InitializationSettings(android: androidSettings);
-    await notificationsPlugin.initialize(
-      initSettings,
-      onDidReceiveNotificationResponse: onBackgroundNotificationResponse,
-      onDidReceiveBackgroundNotificationResponse:
-          onBackgroundNotificationResponse,
-    );
+    // Initialize awesome_notifications in background
+    await AwesomeNotifications()
+        .initialize('resource://drawable/ic_notification', [
+          NotificationChannel(
+            channelKey: EventProcessor.channelKey,
+            channelName: EventProcessor.channelName,
+            channelDescription: EventProcessor.channelDescription,
+            defaultColor: const Color(0xFF7C3AED),
+            importance: NotificationImportance.High,
+            channelShowBadge: true,
+            onlyAlertOnce: true,
+          ),
+        ], debug: false);
 
     // Check calendar permissions
     final permResult = await calendarPlugin.hasPermissions();
@@ -112,7 +75,6 @@ Future<void> _refreshNotificationsInBackground() async {
 
     final refreshService = CalendarRefreshService(
       calendarPlugin: calendarPlugin,
-      notificationsPlugin: notificationsPlugin,
       dismissedStore: dismissedStore,
     );
 
