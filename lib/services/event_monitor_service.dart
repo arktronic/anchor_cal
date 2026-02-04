@@ -1,11 +1,20 @@
+import 'dart:developer' as developer;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:awesome_notifications/awesome_notifications.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import 'background_service.dart';
 import 'dismissed_events_store.dart';
 import 'calendar_launcher.dart';
 import 'calendar_refresh_service.dart';
 import 'settings_service.dart';
 import 'event_processor.dart';
+
+void _log(String message) {
+  if (kDebugMode) {
+    developer.log(message, name: 'AnchorCal.Action');
+  }
+}
 
 /// Notification controller with static methods for awesome_notifications.
 @pragma('vm:entry-point')
@@ -125,6 +134,7 @@ class EventMonitorService {
       await _snoozeEvent(eventHash, eventEnd, receivedAction.id);
     } else {
       // 'open' button or tap on notification body
+      _log('OPEN hash=${eventHash.substring(0, 8)} eventId=$eventId');
       await _dismissEvent(eventHash, eventEnd, receivedAction.id);
       if (eventId != null) {
         await CalendarLauncher.openEvent(eventId);
@@ -138,6 +148,7 @@ class EventMonitorService {
     DateTime eventEnd,
     int? notificationId,
   ) async {
+    _log('DISMISS hash=${eventHash.substring(0, 8)} notifId=$notificationId');
     await _dismissedStore.dismiss(eventHash, eventEnd);
     if (notificationId != null) {
       await AwesomeNotifications().cancel(notificationId);
@@ -152,6 +163,9 @@ class EventMonitorService {
     final now = DateTime.now();
     final snoozeDuration = Duration(minutes: snoozeDurationMinutes);
     final until = now.add(snoozeDuration);
+    _log(
+      'SNOOZE hash=${eventHash.substring(0, 8)} until=$until notifId=$notificationId',
+    );
     await _dismissedStore.snooze(eventHash, eventEnd, until);
     if (notificationId != null) {
       await AwesomeNotifications().cancel(notificationId);
@@ -159,6 +173,15 @@ class EventMonitorService {
     await BackgroundService.instance.scheduleSnoozeWakeup(
       eventHash,
       snoozeDuration,
+    );
+
+    // Show toast with snooze duration
+    final label = snoozeDurationMinutes == 1
+        ? '1 minute'
+        : '$snoozeDurationMinutes minutes';
+    await Fluttertoast.showToast(
+      msg: 'Snoozed for $label',
+      toastLength: Toast.LENGTH_SHORT,
     );
   }
 

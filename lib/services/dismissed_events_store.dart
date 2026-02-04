@@ -1,5 +1,13 @@
 import 'dart:convert';
+import 'dart:developer' as developer;
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+void _log(String message) {
+  if (kDebugMode) {
+    developer.log(message, name: 'AnchorCal.Store');
+  }
+}
 
 /// Stores dismissed events keyed by content hash.
 /// Hash includes eventId + event fields, uniquely identifying each occurrence.
@@ -54,23 +62,39 @@ class DismissedEventsStore {
 
   /// Mark an event occurrence as dismissed.
   Future<void> dismiss(String eventHash, DateTime eventEnd) async {
+    _log('STORE dismiss hash=${eventHash.substring(0, 8)}');
     final entries = await _loadEntries();
-    entries[eventHash] = _DismissedEntry(eventEnd: eventEnd, snoozedUntil: null);
+    entries[eventHash] = _DismissedEntry(
+      eventEnd: eventEnd,
+      snoozedUntil: null,
+    );
     await _saveEntries(entries);
+    _log('STORE dismiss complete, total=${entries.length}');
   }
 
   /// Snooze an event occurrence until a specific time.
-  Future<void> snooze(String eventHash, DateTime eventEnd, DateTime until) async {
+  Future<void> snooze(
+    String eventHash,
+    DateTime eventEnd,
+    DateTime until,
+  ) async {
+    _log('STORE snooze hash=${eventHash.substring(0, 8)} until=$until');
     final entries = await _loadEntries();
-    entries[eventHash] = _DismissedEntry(eventEnd: eventEnd, snoozedUntil: until);
+    entries[eventHash] = _DismissedEntry(
+      eventEnd: eventEnd,
+      snoozedUntil: until,
+    );
     await _saveEntries(entries);
+    _log('STORE snooze complete, total=${entries.length}');
   }
 
   /// Check if an event occurrence is dismissed (excludes snoozed entries).
   Future<bool> isDismissed(String eventHash) async {
     final entries = await _loadEntries();
     final entry = entries[eventHash];
-    return entry != null && entry.snoozedUntil == null;
+    final result = entry != null && entry.snoozedUntil == null;
+    _log('STORE isDismissed hash=${eventHash.substring(0, 8)} => $result');
+    return result;
   }
 
   /// Check if an event occurrence is snoozed (returns snooze end time, or null).
@@ -96,7 +120,9 @@ class DismissedEventsStore {
   Future<void> clearExpiredSnoozes() async {
     final entries = await _loadEntries();
     final now = DateTime.now();
-    entries.removeWhere((_, e) => e.snoozedUntil != null && e.snoozedUntil!.isBefore(now));
+    entries.removeWhere(
+      (_, e) => e.snoozedUntil != null && e.snoozedUntil!.isBefore(now),
+    );
     await _saveEntries(entries);
   }
 
@@ -128,7 +154,7 @@ class _DismissedEntry {
   }
 
   Map<String, dynamic> toJson() => {
-        'end': eventEnd.millisecondsSinceEpoch,
-        if (snoozedUntil != null) 'snooze': snoozedUntil!.millisecondsSinceEpoch,
-      };
+    'end': eventEnd.millisecondsSinceEpoch,
+    if (snoozedUntil != null) 'snooze': snoozedUntil!.millisecondsSinceEpoch,
+  };
 }

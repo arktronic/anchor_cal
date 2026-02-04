@@ -157,8 +157,9 @@ class EventProcessor {
         category: NotificationCategory.Event,
         notificationLayout: NotificationLayout.Default,
         payload: payload,
-        autoDismissible: false,
+        autoDismissible: true,
         locked: false,
+        showWhen: false,
       ),
       actionButtons: _buildActionButtons(),
       schedule: NotificationCalendar.fromDate(
@@ -184,8 +185,9 @@ class EventProcessor {
         category: NotificationCategory.Event,
         notificationLayout: NotificationLayout.Default,
         payload: payload,
-        autoDismissible: false,
+        autoDismissible: true,
         locked: false,
+        showWhen: false,
       ),
       actionButtons: _buildActionButtons(),
     );
@@ -202,11 +204,6 @@ class EventProcessor {
         key: 'snooze',
         label: 'Snooze',
         actionType: ActionType.SilentAction,
-      ),
-      NotificationActionButton(
-        key: 'dismiss',
-        label: 'Dismiss',
-        actionType: ActionType.DismissAction,
       ),
     ];
   }
