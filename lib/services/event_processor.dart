@@ -6,6 +6,7 @@ import 'package:device_calendar/device_calendar.dart';
 import 'package:awesome_notifications/awesome_notifications.dart';
 import 'package:intl/intl.dart';
 import 'dismissed_events_store.dart';
+import 'notification_log_store.dart';
 
 void _log(String message) {
   if (kDebugMode) {
@@ -17,6 +18,7 @@ void _log(String message) {
 class EventProcessor {
   final DismissedEventsStore _dismissedStore;
   final DateTime? _firstRunTimestamp;
+  final Set<int> _alreadyScheduledIds;
 
   static const String channelKey = 'anchorcal_events';
   static const String channelName = 'Calendar Events';
@@ -25,8 +27,10 @@ class EventProcessor {
   EventProcessor({
     required DismissedEventsStore dismissedStore,
     DateTime? firstRunTimestamp,
+    Set<int>? alreadyScheduledIds,
   }) : _dismissedStore = dismissedStore,
-       _firstRunTimestamp = firstRunTimestamp;
+       _firstRunTimestamp = firstRunTimestamp,
+       _alreadyScheduledIds = alreadyScheduledIds ?? {};
 
   /// Compute a deterministic hash of event content and timing.
   /// Uses calendarId + title + start + end to identify occurrences.
@@ -84,7 +88,9 @@ class EventProcessor {
 
       final reminderTime = eventStart.subtract(Duration(minutes: minutes));
       final reminderHash = computeEventHash(event, reminderMinutes: minutes);
-      final notificationId = reminderHash.hashCode.abs() % 2147483647;
+      // Parse first 8 hex chars of SHA-1 hash for stable ID across restarts
+      final notificationId =
+          int.parse(reminderHash.substring(0, 8), radix: 16) % 2147483647;
       processedIds.add(notificationId);
 
       // Skip reminders that were due before the app was first run.
@@ -118,6 +124,11 @@ class EventProcessor {
 
       // Schedule future reminder or show immediately if already due
       if (reminderTime.isAfter(now)) {
+        // Skip if already scheduled
+        if (_alreadyScheduledIds.contains(notificationId)) {
+          _log('    Reminder $minutes min: already scheduled, skipping');
+          continue;
+        }
         _log('    Reminder $minutes min: SCHEDULING for $reminderTime');
         await _scheduleNotification(
           notificationId: notificationId,
@@ -126,6 +137,13 @@ class EventProcessor {
           body: fullBody,
           payload: payload,
         );
+        await NotificationLogStore.instance.log(
+          eventType: NotificationEventType.scheduled,
+          eventTitle: event.title ?? 'Calendar Event',
+          eventHash: reminderHash,
+          notificationId: notificationId,
+          extra: 'Scheduled for $reminderTime',
+        );
       } else {
         _log('    Reminder $minutes min: SHOWING notification!');
         await _showNotification(
@@ -133,6 +151,12 @@ class EventProcessor {
           title: event.title ?? 'Calendar Event',
           body: fullBody,
           payload: payload,
+        );
+        await NotificationLogStore.instance.log(
+          eventType: NotificationEventType.shown,
+          eventTitle: event.title ?? 'Calendar Event',
+          eventHash: reminderHash,
+          notificationId: notificationId,
         );
       }
     }

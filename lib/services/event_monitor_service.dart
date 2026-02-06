@@ -9,6 +9,7 @@ import 'calendar_launcher.dart';
 import 'calendar_refresh_service.dart';
 import 'settings_service.dart';
 import 'event_processor.dart';
+import 'notification_log_store.dart';
 
 void _log(String message) {
   if (kDebugMode) {
@@ -112,7 +113,12 @@ class EventMonitorService {
     if (eventHash == null || eventEndMs == null) return;
 
     final eventEnd = DateTime.fromMillisecondsSinceEpoch(eventEndMs);
-    await _dismissEvent(eventHash, eventEnd, receivedAction.id);
+    await _dismissEvent(
+      eventHash,
+      eventEnd,
+      receivedAction.id,
+      eventTitle: receivedAction.title,
+    );
   }
 
   /// Handle tap or action button press
@@ -127,15 +133,38 @@ class EventMonitorService {
 
     final eventEnd = DateTime.fromMillisecondsSinceEpoch(eventEndMs);
     final buttonKey = receivedAction.buttonKeyPressed;
+    final eventTitle = receivedAction.title;
 
     if (buttonKey == 'dismiss') {
-      await _dismissEvent(eventHash, eventEnd, receivedAction.id);
+      await _dismissEvent(
+        eventHash,
+        eventEnd,
+        receivedAction.id,
+        eventTitle: eventTitle,
+      );
     } else if (buttonKey == 'snooze') {
-      await _snoozeEvent(eventHash, eventEnd, receivedAction.id);
+      await _snoozeEvent(
+        eventHash,
+        eventEnd,
+        receivedAction.id,
+        eventTitle: eventTitle,
+      );
     } else {
       // 'open' button or tap on notification body
       _log('OPEN hash=${eventHash.substring(0, 8)} eventId=$eventId');
-      await _dismissEvent(eventHash, eventEnd, receivedAction.id);
+      await NotificationLogStore.instance.log(
+        eventType: NotificationEventType.opened,
+        eventTitle: eventTitle ?? 'Unknown Event',
+        eventHash: eventHash,
+        notificationId: receivedAction.id,
+        extra: 'eventId=$eventId',
+      );
+      await _dismissEvent(
+        eventHash,
+        eventEnd,
+        receivedAction.id,
+        eventTitle: eventTitle,
+      );
       if (eventId != null) {
         await CalendarLauncher.openEvent(eventId);
       }
@@ -146,20 +175,28 @@ class EventMonitorService {
   Future<void> _dismissEvent(
     String eventHash,
     DateTime eventEnd,
-    int? notificationId,
-  ) async {
+    int? notificationId, {
+    String? eventTitle,
+  }) async {
     _log('DISMISS hash=${eventHash.substring(0, 8)} notifId=$notificationId');
     await _dismissedStore.dismiss(eventHash, eventEnd);
     if (notificationId != null) {
       await AwesomeNotifications().cancel(notificationId);
     }
+    await NotificationLogStore.instance.log(
+      eventType: NotificationEventType.dismissed,
+      eventTitle: eventTitle ?? 'Unknown Event',
+      eventHash: eventHash,
+      notificationId: notificationId,
+    );
   }
 
   Future<void> _snoozeEvent(
     String eventHash,
     DateTime eventEnd,
-    int? notificationId,
-  ) async {
+    int? notificationId, {
+    String? eventTitle,
+  }) async {
     final now = DateTime.now();
     final snoozeDuration = Duration(minutes: snoozeDurationMinutes);
     final until = now.add(snoozeDuration);
@@ -173,6 +210,13 @@ class EventMonitorService {
     await BackgroundService.instance.scheduleSnoozeWakeup(
       eventHash,
       snoozeDuration,
+    );
+    await NotificationLogStore.instance.log(
+      eventType: NotificationEventType.snoozed,
+      eventTitle: eventTitle ?? 'Unknown Event',
+      eventHash: eventHash,
+      notificationId: notificationId,
+      extra: 'Snoozed until $until',
     );
 
     // Show toast with snooze duration

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -6,6 +7,7 @@ import '../services/settings_service.dart';
 import '../services/event_monitor_service.dart';
 import '../services/permissions_helper.dart';
 import '../services/background_service.dart';
+import 'debug_log_screen.dart';
 
 /// Settings screen for AnchorCal app configuration.
 class SettingsScreen extends StatefulWidget {
@@ -418,6 +420,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   );
                 },
               ),
+
+              // Debug section (debug builds only)
+              if (kDebugMode) ...[
+                const Divider(),
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 8, 16, 0),
+                  child: Text(
+                    'DEBUG',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.orange,
+                    ),
+                  ),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.bug_report, color: Colors.orange),
+                  title: const Text('Notification Log'),
+                  subtitle: const Text('View notification event history'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const DebugLogScreen()),
+                    );
+                  },
+                ),
+              ],
 
               // Info Section
               const Padding(

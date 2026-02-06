@@ -12,6 +12,7 @@
   - On boot: receiver enqueues workmanager task → runs same Dart code as periodic refresh
   - Dismissal state stored locally in SharedPreferences (no internet, no SQLite dependency)
   - Content hash (SHA-1 of event fields) used as key for each event/reminder occurrence
+  - Debug builds: notification events (scheduled, shown, dismissed, snoozed, opened) logged to SharedPreferences for debugging
 - **Calendar Integration:**
   - Read-only access to all user calendars via Android calendar provider
 - **Notifications:**
@@ -21,6 +22,7 @@
   - Dismissal via swipe or notification action
 - **UI:**
   - Minimal: settings screen only
+  - Debug builds: notification log screen accessible from settings to view event history
 - **Privacy:**
   - No network access, all data local
 - **Dependencies:**

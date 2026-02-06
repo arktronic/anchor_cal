@@ -5,6 +5,7 @@ import 'package:awesome_notifications/awesome_notifications.dart';
 import 'dismissed_events_store.dart';
 import 'event_processor.dart';
 import 'settings_service.dart';
+import 'notification_log_store.dart';
 
 void _log(String message) {
   if (kDebugMode) {
@@ -77,9 +78,19 @@ class CalendarRefreshService {
       final start = now.subtract(const Duration(days: 1));
       final end = now.add(const Duration(days: 7));
 
+      // Get already scheduled notification IDs to avoid re-scheduling
+      final scheduledNotifications = await AwesomeNotifications()
+          .listScheduledNotifications();
+      final alreadyScheduledIds = scheduledNotifications
+          .map((n) => n.content?.id)
+          .whereType<int>()
+          .toSet();
+      _log('Already scheduled: ${alreadyScheduledIds.length} notifications');
+
       final processor = EventProcessor(
         dismissedStore: _dismissedStore,
         firstRunTimestamp: SettingsService.instance.firstRunTimestamp,
+        alreadyScheduledIds: alreadyScheduledIds,
       );
 
       for (final calendar in calendars) {
@@ -136,6 +147,13 @@ class CalendarRefreshService {
       if (id != null && !validIds.contains(id)) {
         _log('Cancelling orphaned scheduled notification: $id');
         await AwesomeNotifications().cancel(id);
+        await NotificationLogStore.instance.log(
+          eventType: NotificationEventType.cancelled,
+          eventTitle: notification.content?.title ?? 'Unknown Event',
+          eventHash: notification.content?.payload?['eventHash'] ?? 'unknown',
+          notificationId: id,
+          extra: 'Orphaned (event removed or changed)',
+        );
       }
     }
   }
