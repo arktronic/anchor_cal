@@ -112,7 +112,11 @@ class EventMonitorService {
     final eventEndMs = int.tryParse(payload['eventEnd'] ?? '');
     if (eventHash == null || eventEndMs == null) return;
 
-    final eventEnd = DateTime.fromMillisecondsSinceEpoch(eventEndMs);
+    // Parse as UTC then convert to local for consistent handling
+    final eventEnd = DateTime.fromMillisecondsSinceEpoch(
+      eventEndMs,
+      isUtc: true,
+    ).toLocal();
     await _dismissEvent(
       eventHash,
       eventEnd,
@@ -131,7 +135,11 @@ class EventMonitorService {
     final eventEndMs = int.tryParse(payload['eventEnd'] ?? '');
     if (eventHash == null || eventEndMs == null) return;
 
-    final eventEnd = DateTime.fromMillisecondsSinceEpoch(eventEndMs);
+    // Parse as UTC then convert to local for consistent handling
+    final eventEnd = DateTime.fromMillisecondsSinceEpoch(
+      eventEndMs,
+      isUtc: true,
+    ).toLocal();
     final buttonKey = receivedAction.buttonKeyPressed;
     final eventTitle = receivedAction.title;
 
