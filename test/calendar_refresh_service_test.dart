@@ -1,6 +1,8 @@
 import 'package:device_calendar/device_calendar.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:timezone/data/latest.dart' as tz;
+import 'package:timezone/timezone.dart' as tz;
 import 'package:anchor_cal/services/calendar_refresh_service.dart';
 import 'package:anchor_cal/services/dismissed_events_store.dart';
 
@@ -9,6 +11,9 @@ class MockDeviceCalendarPlugin extends Mock implements DeviceCalendarPlugin {}
 class MockDismissedEventsStore extends Mock implements DismissedEventsStore {}
 
 void main() {
+  tz.initializeTimeZones();
+  final location = tz.getLocation('America/New_York');
+
   late MockDeviceCalendarPlugin mockCalendar;
   late MockDismissedEventsStore mockStore;
 
@@ -27,6 +32,7 @@ void main() {
       final service = CalendarRefreshService(
         calendarPlugin: mockCalendar,
         dismissedStore: mockStore,
+        localTimezone: location,
       );
 
       // Should not throw

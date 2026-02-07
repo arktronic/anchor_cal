@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:workmanager/workmanager.dart';
 import 'package:device_calendar/device_calendar.dart';
 import 'package:awesome_notifications/awesome_notifications.dart';
+import 'package:flutter_timezone/flutter_timezone.dart';
+import 'package:timezone/data/latest.dart' as tz_data;
+import 'package:timezone/timezone.dart' as tz;
 import 'dismissed_events_store.dart';
 import 'calendar_refresh_service.dart';
 import 'settings_service.dart';
@@ -36,6 +39,12 @@ Future<void> _refreshNotificationsInBackground() async {
   try {
     _log('Background refresh starting...');
     final calendarPlugin = DeviceCalendarPlugin();
+
+    // Detect local timezone for display formatting.
+    tz_data.initializeTimeZones();
+    final tzInfo = await FlutterTimezone.getLocalTimezone();
+    final localTimezone = tz.getLocation(tzInfo.identifier);
+    _log('Detected local timezone: ${localTimezone.name}');
 
     // Initialize settings service for background context
     await SettingsService.instance.init();
@@ -76,6 +85,7 @@ Future<void> _refreshNotificationsInBackground() async {
     final refreshService = CalendarRefreshService(
       calendarPlugin: calendarPlugin,
       dismissedStore: dismissedStore,
+      localTimezone: localTimezone,
     );
 
     await refreshService.fullRefresh();

@@ -399,6 +399,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 onTap: () async {
                   final info = await PackageInfo.fromPlatform();
                   if (!context.mounted) return;
+                  var version = 'v${info.version}';
+                  if (kDebugMode) {
+                    const buildDate = String.fromEnvironment(
+                      'BUILD_DATE',
+                      defaultValue: 'dev',
+                    );
+                    version += '-debug.$buildDate';
+                  }
                   showAboutDialog(
                     context: context,
                     applicationIcon: Image.asset(
@@ -407,7 +415,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       height: 64,
                     ),
                     applicationName: info.appName,
-                    applicationVersion: 'v${info.version}',
+                    applicationVersion: version,
                     children: [
                       const SizedBox(height: 16),
                       const Text(

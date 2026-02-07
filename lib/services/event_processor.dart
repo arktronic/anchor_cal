@@ -5,6 +5,7 @@ import 'package:crypto/crypto.dart';
 import 'package:device_calendar/device_calendar.dart';
 import 'package:awesome_notifications/awesome_notifications.dart';
 import 'package:intl/intl.dart';
+import 'package:timezone/timezone.dart' as tz;
 import 'dismissed_events_store.dart';
 import 'notification_log_store.dart';
 
@@ -19,6 +20,7 @@ class EventProcessor {
   final DismissedEventsStore _dismissedStore;
   final DateTime? _firstRunTimestamp;
   final Set<int> _alreadyScheduledIds;
+  final tz.Location _localTimezone;
 
   static const String channelKey = 'anchorcal_events';
   static const String channelName = 'Calendar Events';
@@ -26,9 +28,11 @@ class EventProcessor {
 
   EventProcessor({
     required DismissedEventsStore dismissedStore,
+    required tz.Location localTimezone,
     DateTime? firstRunTimestamp,
     Set<int>? alreadyScheduledIds,
   }) : _dismissedStore = dismissedStore,
+       _localTimezone = localTimezone,
        _firstRunTimestamp = firstRunTimestamp,
        _alreadyScheduledIds = alreadyScheduledIds ?? {};
 
@@ -61,16 +65,18 @@ class EventProcessor {
     final eventId = event.eventId;
     if (eventId == null) return {};
 
-    final eventStart = event.start;
-    final eventEnd = event.end;
+    final DateTime? eventStart = event.start?.toUtc();
+    final DateTime? eventEnd = event.end?.toUtc();
     if (eventStart == null || eventEnd == null) return {};
+
+    final nowUtc = now.toUtc();
 
     final reminders = event.reminders;
     if (reminders == null || reminders.isEmpty) return {};
 
     // Skip events that ended more than 1 day ago (UTC-normalized comparison)
-    final cutoffUtc = now.toUtc().subtract(const Duration(days: 1));
-    if (eventEnd.toUtc().isBefore(cutoffUtc)) return {};
+    final cutoffUtc = nowUtc.subtract(const Duration(days: 1));
+    if (eventEnd.isBefore(cutoffUtc)) return {};
 
     final isAllDay = event.allDay ?? false;
     final location = event.location;
@@ -88,12 +94,6 @@ class EventProcessor {
           int.parse(reminderHash.substring(0, 8), radix: 16) & 0x7FFFFFFF;
       processedIds.add(notificationId);
 
-      // Normalize to UTC for timezone-safe comparisons
-      final reminderTimeUtc = reminderTime.toUtc();
-      final nowUtc = now.toUtc();
-
-      // Build notification body with times in local timezone.
-      // Include date context if reminder fires on a different day than event.
       final body = _buildNotificationBody(
         eventStart: eventStart,
         eventEnd: eventEnd,
@@ -103,10 +103,12 @@ class EventProcessor {
       );
 
       // Skip reminders that were due before the app was first run.
-      final firstRun = _firstRunTimestamp;
-      if (firstRun != null && reminderTimeUtc.isBefore(firstRun.toUtc())) {
+      final firstRun = _firstRunTimestamp?.toUtc();
+      if (firstRun != null && reminderTime.isBefore(firstRun)) {
+        final localReminder = tz.TZDateTime.from(reminderTime, _localTimezone);
+        final localFirstRun = tz.TZDateTime.from(firstRun, _localTimezone);
         _log(
-          '    Reminder $minutes min: before first run (reminder=$reminderTimeUtc, firstRun=${firstRun.toUtc()})',
+          '    Reminder $minutes min: before first run (reminder=$localReminder, firstRun=$localFirstRun), skipping',
         );
         continue;
       }
@@ -132,32 +134,31 @@ class EventProcessor {
       };
 
       // Schedule future reminder or show immediately if already due
-      if (reminderTimeUtc.isAfter(nowUtc)) {
+      if (reminderTime.isAfter(nowUtc)) {
         // Skip if already scheduled
         if (_alreadyScheduledIds.contains(notificationId)) {
           _log('    Reminder $minutes min: already scheduled, skipping');
           continue;
         }
-        _log(
-          '    Reminder $minutes min: SCHEDULING for $reminderTime (UTC: $reminderTimeUtc)',
-        );
-        await _scheduleNotification(
+        final localReminder = tz.TZDateTime.from(reminderTime, _localTimezone);
+        _log('    Reminder $minutes min: SCHEDULING for $localReminder');
+        await _createNotification(
           notificationId: notificationId,
-          scheduledTime: reminderTime,
           title: event.title ?? 'Calendar Event',
           body: body,
           payload: payload,
+          scheduledTime: reminderTime,
         );
         await NotificationLogStore.instance.log(
           eventType: NotificationEventType.scheduled,
           eventTitle: event.title ?? 'Calendar Event',
           eventHash: reminderHash,
           notificationId: notificationId,
-          extra: 'Scheduled for $reminderTime',
+          extra: 'Scheduled for $localReminder',
         );
       } else {
         _log('    Reminder $minutes min: SHOWING notification!');
-        await _showNotification(
+        await _createNotification(
           notificationId: notificationId,
           title: event.title ?? 'Calendar Event',
           body: body,
@@ -175,47 +176,13 @@ class EventProcessor {
     return processedIds;
   }
 
-  /// Schedule a notification for a future time.
-  Future<void> _scheduleNotification({
-    required int notificationId,
-    required DateTime scheduledTime,
-    required String title,
-    required String body,
-    required Map<String, String> payload,
-  }) async {
-    // Convert to UTC for NotificationCalendar.fromDate.
-    // fromDate checks isUtc and uses UTC timezone identifier, ensuring the
-    // notification fires at the correct absolute moment regardless of device
-    // timezone or DST changes.
-    final utcScheduledTime = scheduledTime.toUtc();
-
-    await AwesomeNotifications().createNotification(
-      content: NotificationContent(
-        id: notificationId,
-        channelKey: channelKey,
-        title: title,
-        body: body,
-        category: NotificationCategory.Event,
-        notificationLayout: NotificationLayout.Default,
-        payload: payload,
-        autoDismissible: true,
-        locked: false,
-        showWhen: false,
-      ),
-      actionButtons: _buildActionButtons(),
-      schedule: NotificationCalendar.fromDate(
-        date: utcScheduledTime,
-        preciseAlarm: true,
-        allowWhileIdle: true,
-      ),
-    );
-  }
-
-  Future<void> _showNotification({
+  /// Create a notification, optionally scheduled for a future time.
+  Future<void> _createNotification({
     required int notificationId,
     required String title,
     required String body,
     required Map<String, String> payload,
+    DateTime? scheduledTime,
   }) async {
     await AwesomeNotifications().createNotification(
       content: NotificationContent(
@@ -231,6 +198,13 @@ class EventProcessor {
         showWhen: false,
       ),
       actionButtons: _buildActionButtons(),
+      schedule: scheduledTime != null
+          ? NotificationCalendar.fromDate(
+              date: scheduledTime,
+              preciseAlarm: true,
+              allowWhileIdle: true,
+            )
+          : null,
     );
   }
 
@@ -249,8 +223,7 @@ class EventProcessor {
     ];
   }
 
-  /// Build notification body with event times in local timezone.
-  /// Includes date prefix if reminder fires on a different day than the event.
+  /// Build notification body with event times in the device's local timezone.
   String _buildNotificationBody({
     required DateTime eventStart,
     required DateTime eventEnd,
@@ -258,26 +231,14 @@ class EventProcessor {
     required bool isAllDay,
     String? location,
   }) {
-    // Convert to local timezone for display
-    final localStart = eventStart.toLocal();
-    final localEnd = eventEnd.toLocal();
-    final localReminder = reminderTime.toLocal();
+    final localStart = tz.TZDateTime.from(eventStart, _localTimezone);
+    final localEnd = tz.TZDateTime.from(eventEnd, _localTimezone);
+    final localReminder = tz.TZDateTime.from(reminderTime, _localTimezone);
+
+    final daysDiff = _calendarDaysDiff(localReminder, localStart);
 
     String timeLine;
     if (isAllDay) {
-      // For all-day events, check if reminder is on a different day
-      final reminderDate = DateTime(
-        localReminder.year,
-        localReminder.month,
-        localReminder.day,
-      );
-      final eventDate = DateTime(
-        localStart.year,
-        localStart.month,
-        localStart.day,
-      );
-      final daysDiff = eventDate.difference(reminderDate).inDays;
-
       if (daysDiff == 0) {
         timeLine = 'All day';
       } else if (daysDiff == 1) {
@@ -286,19 +247,6 @@ class EventProcessor {
         timeLine = '${DateFormat.MMMd().format(localStart)}, all day';
       }
     } else {
-      // Check if reminder fires on a different calendar day than event start
-      final reminderDate = DateTime(
-        localReminder.year,
-        localReminder.month,
-        localReminder.day,
-      );
-      final eventDate = DateTime(
-        localStart.year,
-        localStart.month,
-        localStart.day,
-      );
-      final daysDiff = eventDate.difference(reminderDate).inDays;
-
       final timeRange =
           '${DateFormat.jm().format(localStart)} – ${DateFormat.jm().format(localEnd)}';
 
@@ -312,5 +260,14 @@ class EventProcessor {
     }
 
     return location?.isNotEmpty == true ? '$timeLine\n$location' : timeLine;
+  }
+
+  /// Calendar days between two local DateTimes (ignoring time-of-day).
+  static int _calendarDaysDiff(DateTime from, DateTime to) {
+    return DateTime(
+      to.year,
+      to.month,
+      to.day,
+    ).difference(DateTime(from.year, from.month, from.day)).inDays;
   }
 }

@@ -3,6 +3,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:awesome_notifications/awesome_notifications.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import 'package:flutter_timezone/flutter_timezone.dart';
+import 'package:timezone/data/latest.dart' as tz_data;
+import 'package:timezone/timezone.dart' as tz;
 import 'background_service.dart';
 import 'dismissed_events_store.dart';
 import 'calendar_launcher.dart';
@@ -98,7 +101,12 @@ class EventMonitorService {
           NotificationController.onDismissActionReceivedMethod,
     );
 
-    _refreshService = CalendarRefreshService(dismissedStore: _dismissedStore);
+    tz_data.initializeTimeZones();
+    final tzInfo = await FlutterTimezone.getLocalTimezone();
+    _refreshService = CalendarRefreshService(
+      dismissedStore: _dismissedStore,
+      localTimezone: tz.getLocation(tzInfo.identifier),
+    );
 
     _initialized = true;
   }

@@ -2,6 +2,7 @@ import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart';
 import 'package:device_calendar/device_calendar.dart';
 import 'package:awesome_notifications/awesome_notifications.dart';
+import 'package:timezone/timezone.dart' as tz;
 import 'dismissed_events_store.dart';
 import 'event_processor.dart';
 import 'settings_service.dart';
@@ -13,52 +14,19 @@ void _log(String message) {
   }
 }
 
-/// Parsed notification action payload.
-class NotificationAction {
-  final String action;
-  final String eventId;
-  final String eventHash;
-  final DateTime eventEnd;
-
-  NotificationAction({
-    required this.action,
-    required this.eventId,
-    required this.eventHash,
-    required this.eventEnd,
-  });
-
-  /// Parse a notification payload string into an action.
-  /// Returns null if payload is invalid.
-  static NotificationAction? parse(String? payload) {
-    if (payload == null) return null;
-
-    final parts = payload.split('|');
-    if (parts.length < 3) return null;
-
-    final eventEndMs = parts.length > 3 ? int.tryParse(parts[3]) : null;
-    final eventEnd = eventEndMs != null
-        ? DateTime.fromMillisecondsSinceEpoch(eventEndMs)
-        : DateTime.now();
-
-    return NotificationAction(
-      action: parts[0],
-      eventId: parts[1],
-      eventHash: parts[2],
-      eventEnd: eventEnd,
-    );
-  }
-}
-
 /// Shared calendar refresh logic for foreground and background execution.
 class CalendarRefreshService {
   final DeviceCalendarPlugin _calendarPlugin;
   final DismissedEventsStore _dismissedStore;
+  final tz.Location _localTimezone;
 
   CalendarRefreshService({
     DeviceCalendarPlugin? calendarPlugin,
     required DismissedEventsStore dismissedStore,
+    required tz.Location localTimezone,
   }) : _calendarPlugin = calendarPlugin ?? DeviceCalendarPlugin(),
-       _dismissedStore = dismissedStore;
+       _dismissedStore = dismissedStore,
+       _localTimezone = localTimezone;
 
   /// Refresh notifications for all active events across all calendars.
   /// Returns the set of valid notification IDs, or empty set on error.
@@ -89,6 +57,7 @@ class CalendarRefreshService {
 
       final processor = EventProcessor(
         dismissedStore: _dismissedStore,
+        localTimezone: _localTimezone,
         firstRunTimestamp: SettingsService.instance.firstRunTimestamp,
         alreadyScheduledIds: alreadyScheduledIds,
       );
