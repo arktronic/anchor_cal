@@ -148,7 +148,10 @@ class _DismissedEntry {
     return _DismissedEntry(
       eventEnd: DateTime.fromMillisecondsSinceEpoch(json['end'] as int),
       snoozedUntil: json['snooze'] != null
-          ? DateTime.fromMillisecondsSinceEpoch(json['snooze'] as int)
+          ? DateTime.fromMillisecondsSinceEpoch(
+              json['snooze'] as int,
+              isUtc: true,
+            )
           : null,
     );
   }

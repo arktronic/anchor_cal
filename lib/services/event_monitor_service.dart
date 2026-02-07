@@ -215,7 +215,7 @@ class EventMonitorService {
   }) async {
     final now = DateTime.now();
     final snoozeDuration = Duration(minutes: snoozeDurationMinutes);
-    final until = now.add(snoozeDuration);
+    final until = now.add(snoozeDuration).toUtc();
     _log(
       'SNOOZE hash=${eventHash.substring(0, 8)} until=$until notifId=$notificationId',
     );
