@@ -10,30 +10,29 @@ import androidx.work.WorkManager
 import dev.fluttercommunity.workmanager.BackgroundWorker
 
 /**
- * Receives BOOT_COMPLETED and triggers immediate notification refresh.
- * Uses the workmanager plugin's BackgroundWorker to invoke the Dart callback.
+ * Receives BOOT_COMPLETED and MY_PACKAGE_REPLACED to re-register
+ * background tasks and calendar monitoring.
  */
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
-            // Schedule calendar change job for real-time updates
-            CalendarJobService.schedule(context)
+        if (intent.action != Intent.ACTION_BOOT_COMPLETED &&
+            intent.action != Intent.ACTION_MY_PACKAGE_REPLACED) return
 
-            // Use the same task name as defined in Dart's callbackDispatcher
-            val inputData = Data.Builder()
-                .putString(BackgroundWorker.DART_TASK_KEY, "anchorCalRefresh")
-                .build()
+        CalendarJobService.schedule(context)
 
-            val workRequest = OneTimeWorkRequestBuilder<BackgroundWorker>()
-                .setInputData(inputData)
-                .addTag("boot_refresh")
-                .build()
+        val inputData = Data.Builder()
+            .putString(BackgroundWorker.DART_TASK_KEY, "anchorCalRefresh")
+            .build()
 
-            WorkManager.getInstance(context).enqueueUniqueWork(
-                "boot_refresh_work",
-                ExistingWorkPolicy.REPLACE,
-                workRequest
-            )
-        }
+        val workRequest = OneTimeWorkRequestBuilder<BackgroundWorker>()
+            .setInputData(inputData)
+            .addTag("boot_refresh")
+            .build()
+
+        WorkManager.getInstance(context).enqueueUniqueWork(
+            "boot_refresh_work",
+            ExistingWorkPolicy.REPLACE,
+            workRequest
+        )
     }
 }

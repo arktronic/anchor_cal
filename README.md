@@ -7,6 +7,8 @@ Android-only Flutter utility. Hooks into system calendar, monitors events, and s
 
 1. Grant calendar and notification permissions.
 2. App monitors calendar events and posts persistent notifications.
+   - Calendar changes are detected in near-real-time via native content observer.
+   - A periodic background task also runs as a fallback.
 3. Notifications persist until user dismisses.
 4. Configure behavior in settings.
 

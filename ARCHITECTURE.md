@@ -9,12 +9,15 @@
   - Notification persists after event ends until user dismisses (swipe/button)
 - **Persistence:**
   - Notifications survive device reboots via native `BootReceiver` that invokes Flutter callback
-  - On boot: receiver enqueues workmanager task → runs same Dart code as periodic refresh
+  - On boot or app update: receiver enqueues workmanager task → runs same Dart code as periodic refresh
   - Dismissal state stored locally in SharedPreferences (no internet, no SQLite dependency)
   - Content hash (SHA-1 of event fields) used as key for each event/reminder occurrence
   - Debug builds: notification events (scheduled, shown, dismissed, snoozed, opened) logged to SharedPreferences for debugging
 - **Calendar Integration:**
   - Read-only access to all user calendars via Android calendar provider
+  - Native `CalendarJobService` uses `TriggerContentUri` to detect calendar changes in near-real-time
+  - On change: enqueues WorkManager task to refresh notifications immediately
+  - Content trigger jobs are one-shot; service re-schedules itself after each trigger
 - **Notifications:**
   - Standard Android notifications, persistent (ongoing)
   - Future reminders scheduled via `NotificationCalendar` for precise timing
