@@ -21,7 +21,7 @@
 - **Notifications:**
   - Standard Android notifications, persistent (ongoing)
   - Future reminders scheduled via `NotificationCalendar` for precise timing
-  - Orphan cleanup cancels both active and pending scheduled notifications
+  - Orphan cleanup cancels both active and pending scheduled notifications using a tracked set of all created notification IDs
   - Dismissal via swipe or notification action
 - **UI:**
   - Minimal: settings screen only

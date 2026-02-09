@@ -7,6 +7,7 @@ import 'package:awesome_notifications/awesome_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
+import 'active_notification_store.dart';
 import 'dismissed_events_store.dart';
 import 'calendar_refresh_service.dart';
 import 'settings_service.dart';
@@ -85,6 +86,7 @@ Future<void> _refreshNotificationsInBackground() async {
     final refreshService = CalendarRefreshService(
       calendarPlugin: calendarPlugin,
       dismissedStore: dismissedStore,
+      activeStore: ActiveNotificationStore.instance,
       localTimezone: localTimezone,
     );
 

@@ -6,6 +6,7 @@ import 'package:device_calendar/device_calendar.dart';
 import 'package:awesome_notifications/awesome_notifications.dart';
 import 'package:intl/intl.dart';
 import 'package:timezone/timezone.dart' as tz;
+import 'active_notification_store.dart';
 import 'dismissed_events_store.dart';
 import 'notification_log_store.dart';
 
@@ -18,6 +19,7 @@ void _log(String message) {
 /// Shared event processing logic for both foreground and background contexts.
 class EventProcessor {
   final DismissedEventsStore _dismissedStore;
+  final ActiveNotificationStore _activeStore;
   final DateTime? _firstRunTimestamp;
   final Set<int> _alreadyScheduledIds;
   final tz.Location _localTimezone;
@@ -28,10 +30,12 @@ class EventProcessor {
 
   EventProcessor({
     required DismissedEventsStore dismissedStore,
+    required ActiveNotificationStore activeStore,
     required tz.Location localTimezone,
     DateTime? firstRunTimestamp,
     Set<int>? alreadyScheduledIds,
   }) : _dismissedStore = dismissedStore,
+       _activeStore = activeStore,
        _localTimezone = localTimezone,
        _firstRunTimestamp = firstRunTimestamp,
        _alreadyScheduledIds = alreadyScheduledIds ?? {};
@@ -149,6 +153,7 @@ class EventProcessor {
           payload: payload,
           scheduledTime: reminderTime,
         );
+        await _activeStore.add(notificationId);
         await NotificationLogStore.instance.log(
           eventType: NotificationEventType.scheduled,
           eventTitle: event.title ?? 'Calendar Event',
@@ -164,6 +169,7 @@ class EventProcessor {
           body: body,
           payload: payload,
         );
+        await _activeStore.add(notificationId);
         await NotificationLogStore.instance.log(
           eventType: NotificationEventType.shown,
           eventTitle: event.title ?? 'Calendar Event',

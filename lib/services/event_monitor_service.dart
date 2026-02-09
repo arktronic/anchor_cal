@@ -7,6 +7,7 @@ import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
 import 'background_service.dart';
+import 'active_notification_store.dart';
 import 'dismissed_events_store.dart';
 import 'calendar_launcher.dart';
 import 'calendar_refresh_service.dart';
@@ -105,6 +106,7 @@ class EventMonitorService {
     final tzInfo = await FlutterTimezone.getLocalTimezone();
     _refreshService = CalendarRefreshService(
       dismissedStore: _dismissedStore,
+      activeStore: ActiveNotificationStore.instance,
       localTimezone: tz.getLocation(tzInfo.identifier),
     );
 
@@ -198,6 +200,7 @@ class EventMonitorService {
     await _dismissedStore.dismiss(eventHash, eventEnd);
     if (notificationId != null) {
       await AwesomeNotifications().cancel(notificationId);
+      await ActiveNotificationStore.instance.remove(notificationId);
     }
     await NotificationLogStore.instance.log(
       eventType: NotificationEventType.dismissed,

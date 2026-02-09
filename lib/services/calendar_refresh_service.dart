@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:device_calendar/device_calendar.dart';
 import 'package:awesome_notifications/awesome_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
+import 'active_notification_store.dart';
 import 'dismissed_events_store.dart';
 import 'event_processor.dart';
 import 'settings_service.dart';
@@ -18,26 +19,29 @@ void _log(String message) {
 class CalendarRefreshService {
   final DeviceCalendarPlugin _calendarPlugin;
   final DismissedEventsStore _dismissedStore;
+  final ActiveNotificationStore _activeStore;
   final tz.Location _localTimezone;
 
   CalendarRefreshService({
     DeviceCalendarPlugin? calendarPlugin,
     required DismissedEventsStore dismissedStore,
+    required ActiveNotificationStore activeStore,
     required tz.Location localTimezone,
   }) : _calendarPlugin = calendarPlugin ?? DeviceCalendarPlugin(),
        _dismissedStore = dismissedStore,
+       _activeStore = activeStore,
        _localTimezone = localTimezone;
 
   /// Refresh notifications for all active events across all calendars.
-  /// Returns the set of valid notification IDs, or empty set on error.
-  Future<Set<int>> refreshNotifications() async {
+  /// Returns the set of valid notification IDs, or null on error.
+  Future<Set<int>?> refreshNotifications() async {
     final validNotificationIds = <int>{};
 
     try {
       final calendarsResult = await _calendarPlugin.retrieveCalendars();
       if (!calendarsResult.isSuccess) {
         _log('Failed to retrieve calendars');
-        return validNotificationIds;
+        return null;
       }
       final calendars = calendarsResult.data ?? [];
       _log('Found ${calendars.length} calendars');
@@ -57,6 +61,7 @@ class CalendarRefreshService {
 
       final processor = EventProcessor(
         dismissedStore: _dismissedStore,
+        activeStore: _activeStore,
         localTimezone: _localTimezone,
         firstRunTimestamp: SettingsService.instance.firstRunTimestamp,
         alreadyScheduledIds: alreadyScheduledIds,
@@ -100,15 +105,17 @@ class CalendarRefreshService {
       _log('Total valid notification IDs: ${validNotificationIds.length}');
     } catch (e, st) {
       _log('Calendar plugin error: $e\n$st');
+      return null;
     }
 
     return validNotificationIds;
   }
 
   /// Cancel notifications that no longer correspond to calendar events.
-  /// Cancels both active (visible) and pending (scheduled) notifications.
+  /// Checks both scheduled (pending) and tracked active (displayed)
+  /// notifications, so deleted events have their reminders dismissed.
   Future<void> cancelOrphanedNotifications(Set<int> validIds) async {
-    // Get all scheduled notifications
+    // Cancel orphaned scheduled (pending) notifications
     final scheduledNotifications = await AwesomeNotifications()
         .listScheduledNotifications();
     for (final notification in scheduledNotifications) {
@@ -125,6 +132,25 @@ class CalendarRefreshService {
         );
       }
     }
+
+    // Cancel orphaned displayed notifications via tracked IDs
+    final trackedIds = await _activeStore.getAll();
+    for (final id in trackedIds) {
+      if (!validIds.contains(id)) {
+        _log('Cancelling orphaned displayed notification: $id');
+        await AwesomeNotifications().cancel(id);
+        await NotificationLogStore.instance.log(
+          eventType: NotificationEventType.cancelled,
+          eventTitle: 'Unknown Event',
+          eventHash: 'unknown',
+          notificationId: id,
+          extra: 'Orphaned displayed (event removed or changed)',
+        );
+      }
+    }
+
+    // Update tracked set to only valid IDs
+    await _activeStore.replaceAll(validIds);
   }
 
   /// Full refresh: update notifications and cancel orphans.
@@ -132,8 +158,8 @@ class CalendarRefreshService {
   Future<void> fullRefresh() async {
     try {
       final validIds = await refreshNotifications();
-      // Only cancel orphans if we successfully retrieved events
-      if (validIds.isNotEmpty) {
+      // Only cancel orphans if calendar retrieval succeeded (null = error)
+      if (validIds != null) {
         await cancelOrphanedNotifications(validIds);
       }
     } catch (_) {

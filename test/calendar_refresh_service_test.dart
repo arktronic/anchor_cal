@@ -4,11 +4,15 @@ import 'package:mocktail/mocktail.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import 'package:anchor_cal/services/calendar_refresh_service.dart';
+import 'package:anchor_cal/services/active_notification_store.dart';
 import 'package:anchor_cal/services/dismissed_events_store.dart';
 
 class MockDeviceCalendarPlugin extends Mock implements DeviceCalendarPlugin {}
 
 class MockDismissedEventsStore extends Mock implements DismissedEventsStore {}
+
+class MockActiveNotificationStore extends Mock
+    implements ActiveNotificationStore {}
 
 void main() {
   tz.initializeTimeZones();
@@ -16,10 +20,12 @@ void main() {
 
   late MockDeviceCalendarPlugin mockCalendar;
   late MockDismissedEventsStore mockStore;
+  late MockActiveNotificationStore mockActiveStore;
 
   setUp(() {
     mockCalendar = MockDeviceCalendarPlugin();
     mockStore = MockDismissedEventsStore();
+    mockActiveStore = MockActiveNotificationStore();
   });
 
   group('CalendarRefreshService.fullRefresh', () {
@@ -32,6 +38,7 @@ void main() {
       final service = CalendarRefreshService(
         calendarPlugin: mockCalendar,
         dismissedStore: mockStore,
+        activeStore: mockActiveStore,
         localTimezone: location,
       );
 
