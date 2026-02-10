@@ -22,13 +22,19 @@ void _log(String message) {
 const String _taskName = 'anchorCalRefresh';
 const String _taskUniqueName = 'com.arktronic.anchor_cal.refresh';
 const String _snoozeTaskName = 'anchorCalSnoozeWakeup';
+const String _uriTaskName = 'anchorCalUriRefresh';
 
 /// Callback dispatcher for background work - must be top-level function.
 @pragma('vm:entry-point')
 void callbackDispatcher() {
   Workmanager().executeTask((task, inputData) async {
-    if (task == _taskName || task == _snoozeTaskName) {
-      await _refreshNotificationsInBackground();
+    if (task == _taskName || task == _snoozeTaskName || task == _uriTaskName) {
+      final source = switch (task) {
+        _uriTaskName => 'uri_monitor',
+        _snoozeTaskName => 'snooze_wakeup',
+        _ => 'workmanager_periodic',
+      };
+      await _refreshNotificationsInBackground(source);
     }
     return true;
   });
@@ -36,9 +42,9 @@ void callbackDispatcher() {
 
 /// Background notification refresh logic (runs without Flutter UI).
 /// Wrapped in try-catch to prevent WorkManager task failures.
-Future<void> _refreshNotificationsInBackground() async {
+Future<void> _refreshNotificationsInBackground(String source) async {
   try {
-    _log('Background refresh starting...');
+    _log('Background refresh starting (source: $source)...');
     final calendarPlugin = DeviceCalendarPlugin();
 
     // Detect local timezone for display formatting.

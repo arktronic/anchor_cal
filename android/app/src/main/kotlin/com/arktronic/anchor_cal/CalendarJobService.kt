@@ -7,6 +7,7 @@ import android.app.job.JobService
 import android.content.ComponentName
 import android.content.Context
 import android.provider.CalendarContract
+import android.util.Log
 import androidx.work.Data
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
@@ -20,6 +21,7 @@ import dev.fluttercommunity.workmanager.BackgroundWorker
 class CalendarJobService : JobService() {
 
     companion object {
+        private const val TAG = "AnchorCal.JobService"
         private const val JOB_ID = 1001
 
         private fun buildJobInfo(context: Context): JobInfo {
@@ -38,18 +40,17 @@ class CalendarJobService : JobService() {
                     )
                 )
                 // Delay slightly to batch rapid changes
-                .setTriggerContentUpdateDelay(500)
-                .setTriggerContentMaxDelay(2000)
+                .setTriggerContentUpdateDelay(5000)
+                .setTriggerContentMaxDelay(15000)
                 .build()
         }
 
         /**
          * Schedule the job to watch for calendar changes.
-         * No-op if already scheduled.
+         * Safe to call repeatedly — same job ID replaces any existing job.
          */
         fun schedule(context: Context) {
             val jobScheduler = context.getSystemService(Context.JOB_SCHEDULER_SERVICE) as JobScheduler
-            if (jobScheduler.getPendingJob(JOB_ID) != null) return
             jobScheduler.schedule(buildJobInfo(context))
         }
 
@@ -63,9 +64,13 @@ class CalendarJobService : JobService() {
     }
 
     override fun onStartJob(params: JobParameters?): Boolean {
+        val changedUris = params?.triggeredContentUris
+        val changedAuthorities = params?.triggeredContentAuthorities
+        Log.d(TAG, "onStartJob triggered — URIs: ${changedUris?.map { it.toString() }}, authorities: ${changedAuthorities?.toList()}")
+
         // Trigger WorkManager task to refresh notifications
         val inputData = Data.Builder()
-            .putString(BackgroundWorker.DART_TASK_KEY, "anchorCalRefresh")
+            .putString(BackgroundWorker.DART_TASK_KEY, "anchorCalUriRefresh")
             .build()
 
         val workRequest = OneTimeWorkRequestBuilder<BackgroundWorker>()
@@ -75,7 +80,7 @@ class CalendarJobService : JobService() {
 
         WorkManager.getInstance(applicationContext).enqueueUniqueWork(
             "calendar_change_work",
-            ExistingWorkPolicy.REPLACE,
+            ExistingWorkPolicy.KEEP,
             workRequest
         )
 

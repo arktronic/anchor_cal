@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart';
 import 'package:device_calendar/device_calendar.dart';
@@ -22,6 +23,9 @@ class CalendarRefreshService {
   final ActiveNotificationStore _activeStore;
   final tz.Location _localTimezone;
 
+  /// In-flight refresh future, if any. Prevents concurrent refreshes.
+  static Future<void>? _activeRefresh;
+
   CalendarRefreshService({
     DeviceCalendarPlugin? calendarPlugin,
     required DismissedEventsStore dismissedStore,
@@ -33,9 +37,9 @@ class CalendarRefreshService {
        _localTimezone = localTimezone;
 
   /// Refresh notifications for all active events across all calendars.
-  /// Returns the set of valid notification IDs, or null on error.
-  Future<Set<int>?> refreshNotifications() async {
-    final validNotificationIds = <int>{};
+  /// Returns the set of valid event hashes, or null on error.
+  Future<Set<String>?> refreshNotifications() async {
+    final validHashes = <String>{};
 
     try {
       final calendarsResult = await _calendarPlugin.retrieveCalendars();
@@ -91,30 +95,34 @@ class CalendarRefreshService {
             _log(
               '  Event "${event.title}": ${reminders.length} reminders, start=${event.start}',
             );
-            final processedIds = await processor.processEvent(event, now);
-            if (processedIds.isNotEmpty) {
-              _log('    Processed IDs: $processedIds');
+            final processedHashes = await processor.processEvent(event, now);
+            if (processedHashes.isNotEmpty) {
+              _log('    Processed hashes: ${processedHashes.length}');
             }
-            validNotificationIds.addAll(processedIds);
+            validHashes.addAll(processedHashes);
           }
         } catch (e) {
           _log('Error processing calendar ${calendar.name}: $e');
           continue;
         }
       }
-      _log('Total valid notification IDs: ${validNotificationIds.length}');
+      _log('Total valid hashes: ${validHashes.length}');
     } catch (e, st) {
       _log('Calendar plugin error: $e\n$st');
       return null;
     }
 
-    return validNotificationIds;
+    return validHashes;
   }
 
   /// Cancel notifications that no longer correspond to calendar events.
   /// Checks both scheduled (pending) and tracked active (displayed)
   /// notifications, so deleted events have their reminders dismissed.
-  Future<void> cancelOrphanedNotifications(Set<int> validIds) async {
+  Future<void> cancelOrphanedNotifications(Set<String> validHashes) async {
+    final validIds = validHashes
+        .map(EventProcessor.notificationIdFromHash)
+        .toSet();
+
     // Cancel orphaned scheduled (pending) notifications
     final scheduledNotifications = await AwesomeNotifications()
         .listScheduledNotifications();
@@ -133,37 +141,49 @@ class CalendarRefreshService {
       }
     }
 
-    // Cancel orphaned displayed notifications via tracked IDs
-    final trackedIds = await _activeStore.getAll();
-    for (final id in trackedIds) {
-      if (!validIds.contains(id)) {
+    // Cancel orphaned displayed notifications via tracked hashes
+    final trackedHashes = await _activeStore.getAll();
+    for (final hash in trackedHashes) {
+      if (!validHashes.contains(hash)) {
+        final id = EventProcessor.notificationIdFromHash(hash);
         _log('Cancelling orphaned displayed notification: $id');
         await AwesomeNotifications().cancel(id);
         await NotificationLogStore.instance.log(
           eventType: NotificationEventType.cancelled,
           eventTitle: 'Unknown Event',
-          eventHash: 'unknown',
+          eventHash: hash,
           notificationId: id,
           extra: 'Orphaned displayed (event removed or changed)',
         );
       }
     }
 
-    // Update tracked set to only valid IDs
-    await _activeStore.replaceAll(validIds);
+    // Update tracked set to only valid hashes
+    await _activeStore.replaceAll(validHashes);
   }
 
   /// Full refresh: update notifications and cancel orphans.
-  /// Silently handles errors to prevent background task crashes.
+  /// Only one refresh runs at a time; concurrent calls await the active one.
   Future<void> fullRefresh() async {
+    if (_activeRefresh != null) {
+      _log('Refresh already in progress, waiting...');
+      await _activeRefresh;
+      return;
+    }
+
+    final completer = Completer<void>();
+    _activeRefresh = completer.future;
     try {
-      final validIds = await refreshNotifications();
+      final validHashes = await refreshNotifications();
       // Only cancel orphans if calendar retrieval succeeded (null = error)
-      if (validIds != null) {
-        await cancelOrphanedNotifications(validIds);
+      if (validHashes != null) {
+        await cancelOrphanedNotifications(validHashes);
       }
     } catch (_) {
       // Swallow errors in background context
+    } finally {
+      _activeRefresh = null;
+      completer.complete();
     }
   }
 }

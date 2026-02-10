@@ -201,7 +201,9 @@ class _DebugLogScreenState extends State<DebugLogScreen> {
             children: [
               _detailRow('Time', timeFormat.format(entry.timestamp)),
               _detailRow('Type', entry.eventTypeName),
-              _detailRow('Hash', entry.eventHash.substring(0, 16)),
+              _detailRow('Hash', entry.eventHash.length > 16
+                  ? entry.eventHash.substring(0, 16)
+                  : entry.eventHash),
               if (entry.notificationId != null)
                 _detailRow('Notification ID', entry.notificationId.toString()),
               if (entry.extra != null) _detailRow('Extra', entry.extra!),

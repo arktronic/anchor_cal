@@ -40,9 +40,17 @@ class EventProcessor {
        _firstRunTimestamp = firstRunTimestamp,
        _alreadyScheduledIds = alreadyScheduledIds ?? {};
 
-  /// Compute a deterministic hash of event content and timing.
-  /// Uses calendarId + title + start + end to identify occurrences.
+  /// Derive a notification ID from an event hash.
+  /// Parses first 8 hex chars of the SHA-1 hash for a stable positive int.
+  static int notificationIdFromHash(String hash) {
+    return int.parse(hash.substring(0, 8), radix: 16) & 0x7FFFFFFF;
+  }
+
+  /// Compute a deterministic hash of event identity and timing.
+  /// Uses calendarId + title + start + end + allDay to identify occurrences.
   /// Excludes eventId since it can change during Exchange/Outlook sync.
+  /// Excludes location/description since they can be silently modified by
+  /// the calendar sync provider without user action.
   /// If [reminderMinutes] is provided, includes it to make each reminder unique.
   /// Uses SHA-1 for consistent hashing across app restarts.
   static String computeEventHash(Event event, {int? reminderMinutes}) {
@@ -51,8 +59,6 @@ class EventProcessor {
       event.title ?? '',
       event.start?.millisecondsSinceEpoch.toString() ?? '',
       event.end?.millisecondsSinceEpoch.toString() ?? '',
-      event.location ?? '',
-      event.description ?? '',
       event.allDay.toString(),
       if (reminderMinutes != null) 'reminder:$reminderMinutes',
     ].join('|');
@@ -63,9 +69,9 @@ class EventProcessor {
   }
 
   /// Process a single event: for each configured reminder, show notification if due.
-  /// Returns the set of notification IDs (hash codes) that were processed.
+  /// Returns the set of event hashes that were processed.
   /// If the event has no reminders configured, no notifications are shown.
-  Future<Set<int>> processEvent(Event event, DateTime now) async {
+  Future<Set<String>> processEvent(Event event, DateTime now) async {
     final eventId = event.eventId;
     if (eventId == null) return {};
 
@@ -85,7 +91,7 @@ class EventProcessor {
     final isAllDay = event.allDay ?? false;
     final location = event.location;
 
-    final processedIds = <int>{};
+    final processedHashes = <String>{};
 
     for (final reminder in reminders) {
       final minutes = reminder.minutes;
@@ -93,10 +99,8 @@ class EventProcessor {
 
       final reminderTime = eventStart.subtract(Duration(minutes: minutes));
       final reminderHash = computeEventHash(event, reminderMinutes: minutes);
-      // Parse first 8 hex chars of SHA-1 hash for stable ID across restarts
-      final notificationId =
-          int.parse(reminderHash.substring(0, 8), radix: 16) & 0x7FFFFFFF;
-      processedIds.add(notificationId);
+      final notificationId = notificationIdFromHash(reminderHash);
+      processedHashes.add(reminderHash);
 
       final body = _buildNotificationBody(
         eventStart: eventStart,
@@ -153,7 +157,7 @@ class EventProcessor {
           payload: payload,
           scheduledTime: reminderTime,
         );
-        await _activeStore.add(notificationId);
+        await _activeStore.add(reminderHash);
         await NotificationLogStore.instance.log(
           eventType: NotificationEventType.scheduled,
           eventTitle: event.title ?? 'Calendar Event',
@@ -169,7 +173,7 @@ class EventProcessor {
           body: body,
           payload: payload,
         );
-        await _activeStore.add(notificationId);
+        await _activeStore.add(reminderHash);
         await NotificationLogStore.instance.log(
           eventType: NotificationEventType.shown,
           eventTitle: event.title ?? 'Calendar Event',
@@ -179,7 +183,7 @@ class EventProcessor {
       }
     }
 
-    return processedIds;
+    return processedHashes;
   }
 
   /// Create a notification, optionally scheduled for a future time.

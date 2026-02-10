@@ -12,61 +12,61 @@ void main() {
     });
 
     test('starts empty', () async {
-      final ids = await store.getAll();
-      expect(ids, isEmpty);
+      final hashes = await store.getAll();
+      expect(hashes, isEmpty);
     });
 
-    test('add stores a notification ID', () async {
-      await store.add(42);
-      final ids = await store.getAll();
-      expect(ids, equals({42}));
+    test('add stores a hash', () async {
+      await store.add('abc123');
+      final hashes = await store.getAll();
+      expect(hashes, equals({'abc123'}));
     });
 
-    test('add multiple IDs', () async {
-      await store.add(1);
-      await store.add(2);
-      await store.add(3);
-      final ids = await store.getAll();
-      expect(ids, equals({1, 2, 3}));
+    test('add multiple hashes', () async {
+      await store.add('hash1');
+      await store.add('hash2');
+      await store.add('hash3');
+      final hashes = await store.getAll();
+      expect(hashes, equals({'hash1', 'hash2', 'hash3'}));
     });
 
     test('add is idempotent', () async {
-      await store.add(42);
-      await store.add(42);
-      final ids = await store.getAll();
-      expect(ids, equals({42}));
+      await store.add('abc123');
+      await store.add('abc123');
+      final hashes = await store.getAll();
+      expect(hashes, equals({'abc123'}));
     });
 
-    test('remove deletes a tracked ID', () async {
-      await store.add(1);
-      await store.add(2);
-      await store.remove(1);
-      final ids = await store.getAll();
-      expect(ids, equals({2}));
+    test('remove deletes a tracked hash', () async {
+      await store.add('hash1');
+      await store.add('hash2');
+      await store.remove('hash1');
+      final hashes = await store.getAll();
+      expect(hashes, equals({'hash2'}));
     });
 
-    test('remove non-existent ID is a no-op', () async {
-      await store.add(1);
-      await store.remove(99);
-      final ids = await store.getAll();
-      expect(ids, equals({1}));
+    test('remove non-existent hash is a no-op', () async {
+      await store.add('hash1');
+      await store.remove('nonexistent');
+      final hashes = await store.getAll();
+      expect(hashes, equals({'hash1'}));
     });
 
-    test('replaceAll overwrites tracked IDs', () async {
-      await store.add(1);
-      await store.add(2);
-      await store.add(3);
-      await store.replaceAll({10, 20});
-      final ids = await store.getAll();
-      expect(ids, equals({10, 20}));
+    test('replaceAll overwrites tracked hashes', () async {
+      await store.add('hash1');
+      await store.add('hash2');
+      await store.add('hash3');
+      await store.replaceAll({'hashA', 'hashB'});
+      final hashes = await store.getAll();
+      expect(hashes, equals({'hashA', 'hashB'}));
     });
 
     test('replaceAll with empty clears all', () async {
-      await store.add(1);
-      await store.add(2);
+      await store.add('hash1');
+      await store.add('hash2');
       await store.replaceAll({});
-      final ids = await store.getAll();
-      expect(ids, isEmpty);
+      final hashes = await store.getAll();
+      expect(hashes, isEmpty);
     });
   });
 }

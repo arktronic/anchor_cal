@@ -72,16 +72,29 @@ void main() {
         isNot(baseHash),
       );
       expect(
-        EventProcessor.computeEventHash(createEvent(eventLocation: 'other')),
+        EventProcessor.computeEventHash(createEvent(allDay: true)),
         isNot(baseHash),
+      );
+    });
+
+    test('location and description changes do NOT affect hash', () {
+      final baseEvent = createEvent();
+      final baseHash = EventProcessor.computeEventHash(baseEvent);
+
+      // These mutable content fields should NOT change the hash
+      expect(
+        EventProcessor.computeEventHash(createEvent(eventLocation: 'other')),
+        equals(baseHash),
       );
       expect(
         EventProcessor.computeEventHash(createEvent(description: 'other')),
-        isNot(baseHash),
+        equals(baseHash),
       );
       expect(
-        EventProcessor.computeEventHash(createEvent(allDay: true)),
-        isNot(baseHash),
+        EventProcessor.computeEventHash(
+          createEvent(eventLocation: null, description: null),
+        ),
+        equals(baseHash),
       );
     });
 

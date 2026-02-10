@@ -9,7 +9,7 @@ void _log(String message) {
   }
 }
 
-/// Tracks all notification IDs the app has created (both scheduled and shown).
+/// Tracks active event hashes for displayed notifications.
 /// Used to cancel displayed notifications when their calendar event is deleted,
 /// since awesome_notifications only lists pending scheduled notifications.
 class ActiveNotificationStore {
@@ -20,7 +20,7 @@ class ActiveNotificationStore {
   @visibleForTesting
   ActiveNotificationStore.forTest();
 
-  static const String _storageKey = 'active_notification_ids';
+  static const String _storageKey = 'active_notification_hashes';
 
   SharedPreferences? _prefs;
 
@@ -30,40 +30,44 @@ class ActiveNotificationStore {
     return _prefs!;
   }
 
-  /// Record a notification ID as active.
-  Future<void> add(int notificationId) async {
-    final ids = await getAll();
-    ids.add(notificationId);
-    await _save(ids);
-    _log('ACTIVE add id=$notificationId, total=${ids.length}');
+  /// Record an event hash as active.
+  Future<void> add(String eventHash) async {
+    final hashes = await getAll();
+    hashes.add(eventHash);
+    await _save(hashes);
+    _log(
+      'ACTIVE add hash=${eventHash.substring(0, eventHash.length.clamp(0, 8))}, total=${hashes.length}',
+    );
   }
 
-  /// Remove a notification ID from active tracking.
-  Future<void> remove(int notificationId) async {
-    final ids = await getAll();
-    ids.remove(notificationId);
-    await _save(ids);
-    _log('ACTIVE remove id=$notificationId, total=${ids.length}');
+  /// Remove an event hash from active tracking.
+  Future<void> remove(String eventHash) async {
+    final hashes = await getAll();
+    hashes.remove(eventHash);
+    await _save(hashes);
+    _log(
+      'ACTIVE remove hash=${eventHash.substring(0, eventHash.length.clamp(0, 8))}, total=${hashes.length}',
+    );
   }
 
-  /// Get all tracked notification IDs.
-  Future<Set<int>> getAll() async {
+  /// Get all tracked event hashes.
+  Future<Set<String>> getAll() async {
     final prefs = await _preferences;
     await prefs.reload();
     final json = prefs.getString(_storageKey);
     if (json == null) return {};
     final list = jsonDecode(json) as List<dynamic>;
-    return list.cast<int>().toSet();
+    return list.cast<String>().toSet();
   }
 
-  /// Replace all tracked IDs with the given set.
-  Future<void> replaceAll(Set<int> ids) async {
-    await _save(ids);
-    _log('ACTIVE replaceAll total=${ids.length}');
+  /// Replace all tracked hashes.
+  Future<void> replaceAll(Set<String> hashes) async {
+    await _save(hashes);
+    _log('ACTIVE replaceAll total=${hashes.length}');
   }
 
-  Future<void> _save(Set<int> ids) async {
+  Future<void> _save(Set<String> hashes) async {
     final prefs = await _preferences;
-    await prefs.setString(_storageKey, jsonEncode(ids.toList()));
+    await prefs.setString(_storageKey, jsonEncode(hashes.toList()));
   }
 }

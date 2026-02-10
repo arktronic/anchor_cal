@@ -200,8 +200,8 @@ class EventMonitorService {
     await _dismissedStore.dismiss(eventHash, eventEnd);
     if (notificationId != null) {
       await AwesomeNotifications().cancel(notificationId);
-      await ActiveNotificationStore.instance.remove(notificationId);
     }
+    await ActiveNotificationStore.instance.remove(eventHash);
     await NotificationLogStore.instance.log(
       eventType: NotificationEventType.dismissed,
       eventTitle: eventTitle ?? 'Unknown Event',
@@ -250,6 +250,7 @@ class EventMonitorService {
 
   /// Refresh notifications for all active events across all calendars.
   Future<void> refreshNotifications() async {
+    _log('Foreground refresh starting...');
     await _refreshService.fullRefresh();
   }
 }
