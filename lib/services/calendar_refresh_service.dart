@@ -143,23 +143,20 @@ class CalendarRefreshService {
 
     // Cancel orphaned displayed notifications via tracked hashes
     final trackedHashes = await _activeStore.getAll();
-    for (final hash in trackedHashes) {
-      if (!validHashes.contains(hash)) {
-        final id = EventProcessor.notificationIdFromHash(hash);
-        _log('Cancelling orphaned displayed notification: $id');
-        await AwesomeNotifications().cancel(id);
-        await NotificationLogStore.instance.log(
-          eventType: NotificationEventType.cancelled,
-          eventTitle: 'Unknown Event',
-          eventHash: hash,
-          notificationId: id,
-          extra: 'Orphaned displayed (event removed or changed)',
-        );
-      }
+    final orphanedHashes = trackedHashes.difference(validHashes);
+    for (final hash in orphanedHashes) {
+      final id = EventProcessor.notificationIdFromHash(hash);
+      _log('Cancelling orphaned displayed notification: $id');
+      await AwesomeNotifications().cancel(id);
+      await _activeStore.remove(hash);
+      await NotificationLogStore.instance.log(
+        eventType: NotificationEventType.cancelled,
+        eventTitle: 'Unknown Event',
+        eventHash: hash,
+        notificationId: id,
+        extra: 'Orphaned displayed (event removed or changed)',
+      );
     }
-
-    // Update tracked set to only valid hashes
-    await _activeStore.replaceAll(validHashes);
   }
 
   /// Full refresh: update notifications and cancel orphans.

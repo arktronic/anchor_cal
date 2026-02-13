@@ -52,21 +52,22 @@ void main() {
       expect(hashes, equals({'hash1'}));
     });
 
-    test('replaceAll overwrites tracked hashes', () async {
-      await store.add('hash1');
-      await store.add('hash2');
-      await store.add('hash3');
-      await store.replaceAll({'hashA', 'hashB'});
+    test('concurrent adds are not lost', () async {
+      final add1 = store.add('hashA');
+      final add2 = store.add('hashB');
+      await Future.wait([add1, add2]);
       final hashes = await store.getAll();
-      expect(hashes, equals({'hashA', 'hashB'}));
+      expect(hashes, containsAll(['hashA', 'hashB']));
     });
 
-    test('replaceAll with empty clears all', () async {
-      await store.add('hash1');
-      await store.add('hash2');
-      await store.replaceAll({});
+    test('concurrent add and remove are consistent', () async {
+      await store.add('hashA');
+      final add = store.add('hashB');
+      final remove = store.remove('hashA');
+      await Future.wait([add, remove]);
       final hashes = await store.getAll();
-      expect(hashes, isEmpty);
+      expect(hashes.contains('hashB'), isTrue);
+      expect(hashes.contains('hashA'), isFalse);
     });
   });
 }

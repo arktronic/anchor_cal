@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart';
@@ -16,7 +17,14 @@ class DismissedEventsStore {
   static DismissedEventsStore get instance => _instance;
   DismissedEventsStore._();
 
+  @visibleForTesting
+  DismissedEventsStore.forTest();
+
   static const String _storageKey = 'dismissed_events';
+
+  /// Serializes read-modify-write operations to prevent concurrent races
+  /// (e.g., two grouped notifications dismissed simultaneously).
+  Future<void>? _pendingOp;
 
   SharedPreferences? _prefs;
 
@@ -60,16 +68,39 @@ class DismissedEventsStore {
     }
   }
 
+  /// Serialize an async operation so concurrent callers wait in line.
+  Future<T> _serialized<T>(Future<T> Function() action) async {
+    while (_pendingOp != null) {
+      try {
+        await _pendingOp;
+      } catch (_) {
+        // Prior operation failed; proceed to claim the lock.
+      }
+    }
+    final completer = Completer<T>();
+    _pendingOp = completer.future.whenComplete(() => _pendingOp = null);
+    try {
+      final result = await action();
+      completer.complete(result);
+      return result;
+    } catch (e, st) {
+      completer.completeError(e, st);
+      rethrow;
+    }
+  }
+
   /// Mark an event occurrence as dismissed.
   Future<void> dismiss(String eventHash, DateTime eventEnd) async {
-    _log('STORE dismiss hash=${eventHash.substring(0, 8)}');
-    final entries = await _loadEntries();
-    entries[eventHash] = _DismissedEntry(
-      eventEnd: eventEnd,
-      snoozedUntil: null,
-    );
-    await _saveEntries(entries);
-    _log('STORE dismiss complete, total=${entries.length}');
+    await _serialized(() async {
+      _log('STORE dismiss hash=${eventHash.substring(0, 8)}');
+      final entries = await _loadEntries();
+      entries[eventHash] = _DismissedEntry(
+        eventEnd: eventEnd,
+        snoozedUntil: null,
+      );
+      await _saveEntries(entries);
+      _log('STORE dismiss complete, total=${entries.length}');
+    });
   }
 
   /// Snooze an event occurrence until a specific time.
@@ -78,14 +109,16 @@ class DismissedEventsStore {
     DateTime eventEnd,
     DateTime until,
   ) async {
-    _log('STORE snooze hash=${eventHash.substring(0, 8)} until=$until');
-    final entries = await _loadEntries();
-    entries[eventHash] = _DismissedEntry(
-      eventEnd: eventEnd,
-      snoozedUntil: until,
-    );
-    await _saveEntries(entries);
-    _log('STORE snooze complete, total=${entries.length}');
+    await _serialized(() async {
+      _log('STORE snooze hash=${eventHash.substring(0, 8)} until=$until');
+      final entries = await _loadEntries();
+      entries[eventHash] = _DismissedEntry(
+        eventEnd: eventEnd,
+        snoozedUntil: until,
+      );
+      await _saveEntries(entries);
+      _log('STORE snooze complete, total=${entries.length}');
+    });
   }
 
   /// Check if an event occurrence is dismissed (excludes snoozed entries).
@@ -118,22 +151,26 @@ class DismissedEventsStore {
 
   /// Clear expired snooze entries (snooze time has passed).
   Future<void> clearExpiredSnoozes() async {
-    final entries = await _loadEntries();
-    final now = DateTime.now();
-    entries.removeWhere(
-      (_, e) => e.snoozedUntil != null && e.snoozedUntil!.isBefore(now),
-    );
-    await _saveEntries(entries);
+    await _serialized(() async {
+      final entries = await _loadEntries();
+      final now = DateTime.now();
+      entries.removeWhere(
+        (_, e) => e.snoozedUntil != null && e.snoozedUntil!.isBefore(now),
+      );
+      await _saveEntries(entries);
+    });
   }
 
   /// Remove dismissed events for events that ended more than [days] ago.
   Future<int> cleanupOldEntries({int days = 30}) async {
-    final entries = await _loadEntries();
-    final cutoff = DateTime.now().subtract(Duration(days: days));
-    final before = entries.length;
-    entries.removeWhere((_, e) => e.eventEnd.isBefore(cutoff));
-    await _saveEntries(entries);
-    return before - entries.length;
+    return _serialized(() async {
+      final entries = await _loadEntries();
+      final cutoff = DateTime.now().subtract(Duration(days: days));
+      final before = entries.length;
+      entries.removeWhere((_, e) => e.eventEnd.isBefore(cutoff));
+      await _saveEntries(entries);
+      return before - entries.length;
+    });
   }
 }
 
