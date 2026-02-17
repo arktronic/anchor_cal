@@ -277,5 +277,9 @@ void main() {
 
   // Note: processEvent tests are skipped because awesome_notifications
   // uses a singleton that cannot be easily mocked in unit tests.
-  // Integration tests should be used to verify notification behavior.
+  // Integration tests should verify:
+  //   - notification shown for past-due reminders
+  //   - re-show skipped for hashes already in ActiveNotificationStore
+  //     (external dismissal from watch/shade)
+  //   - re-show works after ActiveNotificationStore cleared (reboot)
 }

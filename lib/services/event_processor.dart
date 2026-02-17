@@ -93,6 +93,10 @@ class EventProcessor {
 
     final processedHashes = <String>{};
 
+    // Preload active hashes to avoid re-showing notifications that were
+    // already displayed (handles external dismissals from watch/shade).
+    final activeHashes = await _activeStore.getAll();
+
     for (final reminder in reminders) {
       final minutes = reminder.minutes;
       if (minutes == null) continue;
@@ -166,6 +170,18 @@ class EventProcessor {
           extra: 'Scheduled for $localReminder',
         );
       } else {
+        // Skip if already shown (handles external dismissal from watch/shade)
+        if (activeHashes.contains(reminderHash)) {
+          _log('    Reminder $minutes min: already active, skipping re-show');
+          await NotificationLogStore.instance.log(
+            eventType: NotificationEventType.skippedActive,
+            eventTitle: event.title ?? 'Calendar Event',
+            eventHash: reminderHash,
+            notificationId: notificationId,
+            extra: 'Already active — likely dismissed externally',
+          );
+          continue;
+        }
         _log('    Reminder $minutes min: SHOWING notification!');
         await _createNotification(
           notificationId: notificationId,

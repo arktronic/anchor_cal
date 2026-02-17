@@ -76,6 +76,8 @@ class _DebugLogScreenState extends State<DebugLogScreen> {
         return Colors.purple;
       case NotificationEventType.cancelled:
         return Colors.red;
+      case NotificationEventType.skippedActive:
+        return Colors.teal;
     }
   }
 
@@ -93,6 +95,8 @@ class _DebugLogScreenState extends State<DebugLogScreen> {
         return Icons.open_in_new;
       case NotificationEventType.cancelled:
         return Icons.cancel;
+      case NotificationEventType.skippedActive:
+        return Icons.notifications_paused;
     }
   }
 
@@ -201,9 +205,12 @@ class _DebugLogScreenState extends State<DebugLogScreen> {
             children: [
               _detailRow('Time', timeFormat.format(entry.timestamp)),
               _detailRow('Type', entry.eventTypeName),
-              _detailRow('Hash', entry.eventHash.length > 16
-                  ? entry.eventHash.substring(0, 16)
-                  : entry.eventHash),
+              _detailRow(
+                'Hash',
+                entry.eventHash.length > 16
+                    ? entry.eventHash.substring(0, 16)
+                    : entry.eventHash,
+              ),
               if (entry.notificationId != null)
                 _detailRow('Notification ID', entry.notificationId.toString()),
               if (entry.extra != null) _detailRow('Extra', entry.extra!),
