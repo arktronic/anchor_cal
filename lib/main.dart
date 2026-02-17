@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:awesome_notifications/awesome_notifications.dart';
 
 import 'services/event_monitor_service.dart';
 import 'services/background_service.dart';
@@ -15,15 +14,6 @@ void main() async {
 
   if (SettingsService.instance.persistOverReboot) {
     await BackgroundService.instance.registerPeriodicTask();
-  }
-
-  // Check if app was launched from a notification tap
-  final launchAction = await AwesomeNotifications()
-      .getInitialNotificationAction();
-  if (launchAction != null) {
-    // Handle the action that launched the app
-    await EventMonitorService.instance.handleAction(launchAction);
-    return;
   }
 
   // Immediate refresh on app launch (handles post-upgrade, etc.)
