@@ -201,7 +201,11 @@ class EventMonitorService {
     if (notificationId != null) {
       await AwesomeNotifications().cancel(notificationId);
     }
-    await ActiveNotificationStore.instance.remove(eventHash);
+    // Keep hash in ActiveNotificationStore as a cross-isolate safety net.
+    // The background WorkManager refresh runs in a separate isolate and may
+    // not yet see the DismissedEventsStore write. The active hash prevents
+    // the background refresh from recreating the notification (fixes the
+    // race that causes dismissed notifications to reappear on wearables).
     await NotificationLogStore.instance.log(
       eventType: NotificationEventType.dismissed,
       eventTitle: eventTitle ?? 'Unknown Event',
@@ -226,6 +230,9 @@ class EventMonitorService {
     if (notificationId != null) {
       await AwesomeNotifications().cancel(notificationId);
     }
+    // Remove from ActiveNotificationStore so the notification can reappear
+    // after the snooze expires and clearExpiredSnoozes runs.
+    await ActiveNotificationStore.instance.remove(eventHash);
     await BackgroundService.instance.scheduleSnoozeWakeup(
       eventHash,
       snoozeDuration,
