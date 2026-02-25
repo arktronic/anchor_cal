@@ -169,6 +169,30 @@ void main() {
         equals(EventProcessor.computeEventHash(eventLa)),
       );
     });
+
+    test('sub-minute timestamp drift produces same hash', () {
+      // Simulate Exchange/ActiveSync re-expanding a recurring event
+      // with slightly different sub-minute precision
+      final start1 = tz.TZDateTime(location, 2026, 2, 1, 10, 0, 0, 0);
+      final start2 = tz.TZDateTime(location, 2026, 2, 1, 10, 0, 0, 123);
+      final end1 = tz.TZDateTime(location, 2026, 2, 1, 11, 0, 0, 0);
+      final end2 = tz.TZDateTime(location, 2026, 2, 1, 11, 0, 0, 456);
+
+      expect(start1.millisecondsSinceEpoch,
+          isNot(start2.millisecondsSinceEpoch));
+
+      final event1 = createEvent(start: start1, end: end1);
+      final event2 = createEvent(start: start2, end: end2);
+
+      expect(
+        EventProcessor.computeEventHash(event1),
+        equals(EventProcessor.computeEventHash(event2)),
+      );
+      expect(
+        EventProcessor.computeEventHash(event1, reminderMinutes: 15),
+        equals(EventProcessor.computeEventHash(event2, reminderMinutes: 15)),
+      );
+    });
   });
 
   group('Notification ID generation', () {

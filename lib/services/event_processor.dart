@@ -51,14 +51,16 @@ class EventProcessor {
   /// Excludes eventId since it can change during Exchange/Outlook sync.
   /// Excludes location/description since they can be silently modified by
   /// the calendar sync provider without user action.
+  /// Truncates start/end to minute precision to absorb sub-minute timestamp
+  /// drift caused by Exchange/ActiveSync recurring event re-expansion.
   /// If [reminderMinutes] is provided, includes it to make each reminder unique.
   /// Uses SHA-1 for consistent hashing across app restarts.
   static String computeEventHash(Event event, {int? reminderMinutes}) {
     final str = [
       event.calendarId ?? '',
       event.title ?? '',
-      event.start?.millisecondsSinceEpoch.toString() ?? '',
-      event.end?.millisecondsSinceEpoch.toString() ?? '',
+      _truncateToMinuteMs(event.start)?.toString() ?? '',
+      _truncateToMinuteMs(event.end)?.toString() ?? '',
       event.allDay.toString(),
       if (reminderMinutes != null) 'reminder:$reminderMinutes',
     ].join('|');
@@ -66,6 +68,13 @@ class EventProcessor {
     final bytes = utf8.encode(str);
     final digest = sha1.convert(bytes);
     return digest.toString();
+  }
+
+  /// Truncate a DateTime to minute precision, returning milliseconds since epoch.
+  static int? _truncateToMinuteMs(DateTime? dt) {
+    if (dt == null) return null;
+    final ms = dt.millisecondsSinceEpoch;
+    return ms - ms % 60000;
   }
 
   /// Process a single event: for each configured reminder, show notification if due.
