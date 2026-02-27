@@ -32,12 +32,22 @@ class NotificationController {
     // Not used, but required by awesome_notifications
   }
 
-  /// Called when a notification is displayed
+  /// Called when a notification is displayed (including scheduled alarms firing)
   @pragma('vm:entry-point')
   static Future<void> onNotificationDisplayedMethod(
     ReceivedNotification receivedNotification,
   ) async {
-    // Not used, but required by awesome_notifications
+    final payload = receivedNotification.payload;
+    final eventHash = payload?['eventHash'];
+    if (eventHash == null) return;
+
+    await NotificationLogStore.instance.log(
+      eventType: NotificationEventType.shown,
+      eventTitle: receivedNotification.title ?? 'Unknown Event',
+      eventHash: eventHash,
+      notificationId: receivedNotification.id,
+      extra: 'Displayed by OS (scheduled alarm fired)',
+    );
   }
 
   /// Called when a notification is dismissed by swipe

@@ -51,7 +51,9 @@ class CalendarRefreshService {
       _log('Found ${calendars.length} calendars');
 
       final now = DateTime.now();
-      final start = now.subtract(const Duration(days: 1));
+      // Look back 5 days to match EventProcessor's retention window.
+      // Events within this range keep their notification hashes valid.
+      final start = now.subtract(const Duration(days: 5));
       final end = now.add(const Duration(days: 7));
 
       // Get already scheduled notification IDs to avoid re-scheduling

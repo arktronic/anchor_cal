@@ -305,5 +305,7 @@ void main() {
   //   - notification shown for past-due reminders
   //   - re-show skipped for hashes already in ActiveNotificationStore
   //     (external dismissal from watch/shade)
+  //   - SKIP_ACTIVE extra includes pending-schedule status
   //   - re-show works after ActiveNotificationStore cleared (reboot)
+  //   - onNotificationDisplayedMethod logs SHOWN when scheduled alarm fires
 }

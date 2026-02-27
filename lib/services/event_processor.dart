@@ -93,8 +93,10 @@ class EventProcessor {
     final reminders = event.reminders;
     if (reminders == null || reminders.isEmpty) return {};
 
-    // Skip events that ended more than 1 day ago (UTC-normalized comparison)
-    final cutoffUtc = nowUtc.subtract(const Duration(days: 1));
+    // Skip events that ended more than 5 days ago (UTC-normalized comparison).
+    // Keeps reminder notifications valid so they aren't orphan-cancelled
+    // while the event is still recent.
+    final cutoffUtc = nowUtc.subtract(const Duration(days: 5));
     if (eventEnd.isBefore(cutoffUtc)) return {};
 
     final isAllDay = event.allDay ?? false;
@@ -179,15 +181,25 @@ class EventProcessor {
           extra: 'Scheduled for $localReminder',
         );
       } else {
+        // Cancel any pending scheduled alarm so it doesn't re-display
+        // the notification after we show it immediately or skip it.
+        await AwesomeNotifications().cancelSchedule(notificationId);
+
         // Skip if already shown (handles external dismissal from watch/shade)
         if (activeHashes.contains(reminderHash)) {
-          _log('    Reminder $minutes min: already active, skipping re-show');
+          final stillPending = _alreadyScheduledIds.contains(notificationId);
+          final status = stillPending
+              ? 'pending schedule (cancelled)'
+              : 'no pending schedule';
+          _log(
+            '    Reminder $minutes min: already active, skipping re-show ($status)',
+          );
           await NotificationLogStore.instance.log(
             eventType: NotificationEventType.skippedActive,
             eventTitle: event.title ?? 'Calendar Event',
             eventHash: reminderHash,
             notificationId: notificationId,
-            extra: 'Already active — likely dismissed externally',
+            extra: 'Already active — $status',
           );
           continue;
         }
