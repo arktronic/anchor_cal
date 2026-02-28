@@ -181,25 +181,24 @@ class EventProcessor {
           extra: 'Scheduled for $localReminder',
         );
       } else {
-        // Cancel any pending scheduled alarm so it doesn't re-display
-        // the notification after we show it immediately or skip it.
-        await AwesomeNotifications().cancelSchedule(notificationId);
+        // If a scheduled alarm is still pending in the OS, let it fire
+        // naturally. Showing manually would race with the alarm and the
+        // user could see the notification twice.
+        if (_alreadyScheduledIds.contains(notificationId)) {
+          _log(
+            '    Reminder $minutes min: pending OS schedule, skipping manual show',
+          );
+          continue;
+        }
 
         // Skip if already shown (handles external dismissal from watch/shade)
         if (activeHashes.contains(reminderHash)) {
-          final stillPending = _alreadyScheduledIds.contains(notificationId);
-          final status = stillPending
-              ? 'pending schedule (cancelled)'
-              : 'no pending schedule';
-          _log(
-            '    Reminder $minutes min: already active, skipping re-show ($status)',
-          );
+          _log('    Reminder $minutes min: already active, skipping re-show');
           await NotificationLogStore.instance.log(
             eventType: NotificationEventType.skippedActive,
             eventTitle: event.title ?? 'Calendar Event',
             eventHash: reminderHash,
             notificationId: notificationId,
-            extra: 'Already active — $status',
           );
           continue;
         }

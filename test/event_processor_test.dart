@@ -178,8 +178,10 @@ void main() {
       final end1 = tz.TZDateTime(location, 2026, 2, 1, 11, 0, 0, 0);
       final end2 = tz.TZDateTime(location, 2026, 2, 1, 11, 0, 0, 456);
 
-      expect(start1.millisecondsSinceEpoch,
-          isNot(start2.millisecondsSinceEpoch));
+      expect(
+        start1.millisecondsSinceEpoch,
+        isNot(start2.millisecondsSinceEpoch),
+      );
 
       final event1 = createEvent(start: start1, end: end1);
       final event2 = createEvent(start: start2, end: end2);
@@ -303,9 +305,10 @@ void main() {
   // uses a singleton that cannot be easily mocked in unit tests.
   // Integration tests should verify:
   //   - notification shown for past-due reminders
+  //   - manual show skipped when OS schedule is still pending
+  //     (avoids race where both OS alarm and manual show fire)
   //   - re-show skipped for hashes already in ActiveNotificationStore
   //     (external dismissal from watch/shade)
-  //   - SKIP_ACTIVE extra includes pending-schedule status
   //   - re-show works after ActiveNotificationStore cleared (reboot)
   //   - onNotificationDisplayedMethod logs SHOWN when scheduled alarm fires
 }
