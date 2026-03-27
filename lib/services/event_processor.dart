@@ -136,16 +136,20 @@ class EventProcessor {
         continue;
       }
 
-      // Skip if already dismissed
+      // Skip if already dismissed.
+      // Cancel to clean up ghost notifications that the OS notification
+      // plugin may independently re-show on reboot via its own boot receiver.
       if (await _dismissedStore.isDismissed(reminderHash)) {
         _log('    Reminder $minutes min: already dismissed');
+        await AwesomeNotifications().cancel(notificationId);
         continue;
       }
 
-      // Skip if snoozed
+      // Skip if snoozed (cancel for the same reboot-ghost reason).
       final snoozedUntil = await _dismissedStore.getSnoozedUntil(reminderHash);
       if (snoozedUntil != null && nowUtc.isBefore(snoozedUntil.toUtc())) {
         _log('    Reminder $minutes min: snoozed until $snoozedUntil');
+        await AwesomeNotifications().cancel(notificationId);
         continue;
       }
 
