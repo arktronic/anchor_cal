@@ -50,11 +50,30 @@ class NotificationController {
     );
   }
 
+  /// Ensure awesome_notifications is initialized in the current isolate.
+  /// Required when these static methods are invoked in a fresh isolate
+  /// (e.g., app is killed or backgrounded).
+  static Future<void> _ensureAwesomeNotificationsInitialized() async {
+    await AwesomeNotifications()
+        .initialize('resource://drawable/ic_notification', [
+          NotificationChannel(
+            channelKey: EventProcessor.channelKey,
+            channelName: EventProcessor.channelName,
+            channelDescription: EventProcessor.channelDescription,
+            defaultColor: const Color(0xFF7C3AED),
+            importance: NotificationImportance.High,
+            channelShowBadge: true,
+            onlyAlertOnce: true,
+          ),
+        ], debug: false);
+  }
+
   /// Called when a notification is dismissed by swipe
   @pragma('vm:entry-point')
   static Future<void> onDismissActionReceivedMethod(
     ReceivedAction receivedAction,
   ) async {
+    await _ensureAwesomeNotificationsInitialized();
     await EventMonitorService.instance._handleDismissAction(receivedAction);
   }
 
@@ -63,6 +82,7 @@ class NotificationController {
   static Future<void> onActionReceivedMethod(
     ReceivedAction receivedAction,
   ) async {
+    await _ensureAwesomeNotificationsInitialized();
     await EventMonitorService.instance.handleAction(receivedAction);
   }
 }
