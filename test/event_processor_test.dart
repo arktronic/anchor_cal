@@ -1,4 +1,4 @@
-import 'package:device_calendar/device_calendar.dart';
+import 'package:device_calendar_plus/device_calendar_plus.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:timezone/data/latest.dart' as tz;
@@ -17,21 +17,28 @@ void main() {
 
   Event createEvent({
     String calendarId = 'calendar-1',
-    String? eventId = 'event-123',
-    String? title = 'Test Event',
+    String eventId = 'event-123',
+    String title = 'Test Event',
     tz.TZDateTime? start,
     tz.TZDateTime? end,
     String? eventLocation = 'Room A',
     String? description = 'Test description',
     bool allDay = false,
   }) {
-    final event = Event(calendarId, eventId: eventId);
-    event.title = title;
-    event.start = start ?? baseStart;
-    event.end = end ?? baseEnd;
-    event.location = eventLocation;
-    event.description = description;
-    event.allDay = allDay;
+    final event = Event(
+      calendarId: calendarId,
+      eventId: eventId,
+      instanceId: eventId,
+      title: title,
+      startDate: start ?? baseStart,
+      endDate: end ?? baseEnd,
+      location: eventLocation,
+      description: description,
+      isAllDay: allDay,
+      availability: EventAvailability.busy,
+      status: EventStatus.confirmed,
+      isRecurring: false,
+    );
     return event;
   }
 
@@ -127,8 +134,8 @@ void main() {
 
     test('handles null fields gracefully', () {
       final event = createEvent(
-        eventId: null,
-        title: null,
+        eventId: '',
+        title: '',
         eventLocation: null,
         description: null,
       );
@@ -155,13 +162,20 @@ void main() {
         start: nyTime,
         end: nyTime.add(const Duration(hours: 1)),
       );
-      final eventLa = Event('calendar-1', eventId: 'event-123');
-      eventLa.title = 'Test Event';
-      eventLa.start = laTime;
-      eventLa.end = laTime.add(const Duration(hours: 1));
-      eventLa.location = 'Room A';
-      eventLa.description = 'Test description';
-      eventLa.allDay = false;
+      final eventLa = Event(
+        calendarId: 'calendar-1',
+        eventId: 'event-123',
+        instanceId: 'event-123',
+        title: 'Test Event',
+        startDate: laTime,
+        endDate: laTime.add(const Duration(hours: 1)),
+        location: 'Room A',
+        description: 'Test description',
+        isAllDay: false,
+        availability: EventAvailability.busy,
+        status: EventStatus.confirmed,
+        isRecurring: false,
+      );
 
       // Same absolute time should produce same hash
       expect(

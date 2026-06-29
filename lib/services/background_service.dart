@@ -2,7 +2,7 @@ import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:workmanager/workmanager.dart';
-import 'package:device_calendar/device_calendar.dart';
+import 'package:device_calendar_plus/device_calendar_plus.dart';
 import 'package:awesome_notifications/awesome_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest.dart' as tz_data;
@@ -45,7 +45,7 @@ void callbackDispatcher() {
 Future<void> _refreshNotificationsInBackground(String source) async {
   try {
     _log('Background refresh starting (source: $source)...');
-    final calendarPlugin = DeviceCalendarPlugin();
+    final calendarPlugin = DeviceCalendar();
 
     // Detect local timezone for display formatting.
     tz_data.initializeTimeZones();
@@ -75,8 +75,8 @@ Future<void> _refreshNotificationsInBackground(String source) async {
 
     // Check calendar permissions
     final permResult = await calendarPlugin.hasPermissions();
-    _log('Calendar permissions: ${permResult.data}');
-    if (!(permResult.data ?? false)) {
+    _log('Calendar permissions: ${permResult.name}');
+    if (permResult != CalendarPermissionStatus.granted) {
       _log('No calendar permissions, aborting');
       return;
     }

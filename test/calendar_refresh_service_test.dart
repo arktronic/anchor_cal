@@ -1,4 +1,4 @@
-import 'package:device_calendar/device_calendar.dart';
+import 'package:device_calendar_plus/device_calendar_plus.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:timezone/data/latest.dart' as tz;
@@ -7,7 +7,7 @@ import 'package:anchor_cal/services/calendar_refresh_service.dart';
 import 'package:anchor_cal/services/active_notification_store.dart';
 import 'package:anchor_cal/services/dismissed_events_store.dart';
 
-class MockDeviceCalendarPlugin extends Mock implements DeviceCalendarPlugin {}
+class MockDeviceCalendarPlugin extends Mock implements DeviceCalendar {}
 
 class MockDismissedEventsStore extends Mock implements DismissedEventsStore {}
 
@@ -31,9 +31,7 @@ void main() {
   group('CalendarRefreshService.fullRefresh', () {
     test('handles calendar access failure gracefully', () async {
       // This guards against crashing when the calendar plugin fails
-      when(
-        () => mockCalendar.retrieveCalendars(),
-      ).thenThrow(Exception('Failed'));
+      when(() => mockCalendar.listCalendars()).thenThrow(Exception('Failed'));
 
       final service = CalendarRefreshService(
         calendarPlugin: mockCalendar,

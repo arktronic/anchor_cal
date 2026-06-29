@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart';
-import 'package:device_calendar/device_calendar.dart';
+import 'package:device_calendar_plus/device_calendar_plus.dart';
 import 'package:awesome_notifications/awesome_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'active_notification_store.dart';
@@ -18,7 +18,7 @@ void _log(String message) {
 
 /// Shared calendar refresh logic for foreground and background execution.
 class CalendarRefreshService {
-  final DeviceCalendarPlugin _calendarPlugin;
+  final DeviceCalendar _calendarPlugin;
   final DismissedEventsStore _dismissedStore;
   final ActiveNotificationStore _activeStore;
   final tz.Location _localTimezone;
@@ -27,11 +27,11 @@ class CalendarRefreshService {
   static Future<void>? _activeRefresh;
 
   CalendarRefreshService({
-    DeviceCalendarPlugin? calendarPlugin,
+    DeviceCalendar? calendarPlugin,
     required DismissedEventsStore dismissedStore,
     required ActiveNotificationStore activeStore,
     required tz.Location localTimezone,
-  }) : _calendarPlugin = calendarPlugin ?? DeviceCalendarPlugin(),
+  }) : _calendarPlugin = calendarPlugin ?? DeviceCalendar(),
        _dismissedStore = dismissedStore,
        _activeStore = activeStore,
        _localTimezone = localTimezone;
@@ -42,12 +42,7 @@ class CalendarRefreshService {
     final validHashes = <String>{};
 
     try {
-      final calendarsResult = await _calendarPlugin.retrieveCalendars();
-      if (!calendarsResult.isSuccess) {
-        _log('Failed to retrieve calendars');
-        return null;
-      }
-      final calendars = calendarsResult.data ?? [];
+      final calendars = await _calendarPlugin.listCalendars();
       _log('Found ${calendars.length} calendars');
 
       final now = DateTime.now();
@@ -74,28 +69,24 @@ class CalendarRefreshService {
       );
 
       for (final calendar in calendars) {
-        if (calendar.id == null) {
+        if (calendar.id.isEmpty) {
           _log('Skipping calendar "${calendar.name}" - null id');
           continue;
         }
 
         try {
           _log('Processing calendar "${calendar.name}" (id=${calendar.id})');
-          final eventsResult = await _calendarPlugin.retrieveEvents(
-            calendar.id,
-            RetrieveEventsParams(startDate: start, endDate: end),
+          final events = await _calendarPlugin.listEvents(
+            start,
+            end,
+            calendarIds: [calendar.id],
           );
-          if (!eventsResult.isSuccess) {
-            _log('  Failed to retrieve events: ${eventsResult.errors}');
-            continue;
-          }
-          final events = eventsResult.data ?? [];
           _log('Calendar "${calendar.name}": ${events.length} events');
 
           for (final event in events) {
             final reminders = event.reminders ?? [];
             _log(
-              '  Event "${event.title}": ${reminders.length} reminders, start=${event.start}',
+              '  Event "${event.title}": ${reminders.length} reminders, start=${event.startDate}',
             );
             final processedHashes = await processor.processEvent(event, now);
             if (processedHashes.isNotEmpty) {

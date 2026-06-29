@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart';
 import 'package:crypto/crypto.dart';
-import 'package:device_calendar/device_calendar.dart';
+import 'package:device_calendar_plus/device_calendar_plus.dart';
 import 'package:awesome_notifications/awesome_notifications.dart';
 import 'package:intl/intl.dart';
 import 'package:timezone/timezone.dart' as tz;
@@ -57,11 +57,11 @@ class EventProcessor {
   /// Uses SHA-1 for consistent hashing across app restarts.
   static String computeEventHash(Event event, {int? reminderMinutes}) {
     final str = [
-      event.calendarId ?? '',
-      event.title ?? '',
-      _truncateToMinuteMs(event.start)?.toString() ?? '',
-      _truncateToMinuteMs(event.end)?.toString() ?? '',
-      event.allDay.toString(),
+      event.calendarId,
+      event.title,
+      _truncateToMinuteMs(event.startDate)?.toString() ?? '',
+      _truncateToMinuteMs(event.endDate)?.toString() ?? '',
+      event.isAllDay.toString(),
       if (reminderMinutes != null) 'reminder:$reminderMinutes',
     ].join('|');
 
@@ -82,11 +82,10 @@ class EventProcessor {
   /// If the event has no reminders configured, no notifications are shown.
   Future<Set<String>> processEvent(Event event, DateTime now) async {
     final eventId = event.eventId;
-    if (eventId == null) return {};
+    if (eventId.isEmpty) return {};
 
-    final DateTime? eventStart = event.start?.toUtc();
-    final DateTime? eventEnd = event.end?.toUtc();
-    if (eventStart == null || eventEnd == null) return {};
+    final DateTime eventStart = event.startDate.toUtc();
+    final DateTime eventEnd = event.endDate.toUtc();
 
     final nowUtc = now.toUtc();
 
@@ -99,7 +98,7 @@ class EventProcessor {
     final cutoffUtc = nowUtc.subtract(const Duration(days: 5));
     if (eventEnd.isBefore(cutoffUtc)) return {};
 
-    final isAllDay = event.allDay ?? false;
+    final isAllDay = event.isAllDay;
     final location = event.location;
 
     final processedHashes = <String>{};
@@ -109,8 +108,7 @@ class EventProcessor {
     final activeHashes = await _activeStore.getAll();
 
     for (final reminder in reminders) {
-      final minutes = reminder.minutes;
-      if (minutes == null) continue;
+      final minutes = reminder.inMinutes;
 
       final reminderTime = eventStart.subtract(Duration(minutes: minutes));
       final reminderHash = computeEventHash(event, reminderMinutes: minutes);
