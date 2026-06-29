@@ -169,7 +169,7 @@ class EventProcessor {
         _log('    Reminder $minutes min: SCHEDULING for $localReminder');
         await _createNotification(
           notificationId: notificationId,
-          title: event.title ?? 'Calendar Event',
+          title: event.title,
           body: body,
           payload: payload,
           scheduledTime: reminderTime,
@@ -177,7 +177,7 @@ class EventProcessor {
         await _activeStore.add(reminderHash);
         await NotificationLogStore.instance.log(
           eventType: NotificationEventType.scheduled,
-          eventTitle: event.title ?? 'Calendar Event',
+          eventTitle: event.title,
           eventHash: reminderHash,
           notificationId: notificationId,
           extra: 'Scheduled for $localReminder',
@@ -198,7 +198,7 @@ class EventProcessor {
           _log('    Reminder $minutes min: already active, skipping re-show');
           await NotificationLogStore.instance.log(
             eventType: NotificationEventType.skippedActive,
-            eventTitle: event.title ?? 'Calendar Event',
+            eventTitle: event.title,
             eventHash: reminderHash,
             notificationId: notificationId,
           );
@@ -207,14 +207,14 @@ class EventProcessor {
         _log('    Reminder $minutes min: SHOWING notification!');
         await _createNotification(
           notificationId: notificationId,
-          title: event.title ?? 'Calendar Event',
+          title: event.title,
           body: body,
           payload: payload,
         );
         await _activeStore.add(reminderHash);
         await NotificationLogStore.instance.log(
           eventType: NotificationEventType.shown,
-          eventTitle: event.title ?? 'Calendar Event',
+          eventTitle: event.title,
           eventHash: reminderHash,
           notificationId: notificationId,
         );
