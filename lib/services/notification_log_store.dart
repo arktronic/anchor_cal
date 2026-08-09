@@ -11,6 +11,7 @@ enum NotificationEventType {
   opened,
   cancelled,
   skippedActive,
+  diagnostic,
 }
 
 /// A single notification event log entry.
@@ -67,6 +68,8 @@ class NotificationLogEntry {
         return 'CANCELLED';
       case NotificationEventType.skippedActive:
         return 'SKIP_ACTIVE';
+      case NotificationEventType.diagnostic:
+        return 'DIAGNOSTIC';
     }
   }
 }

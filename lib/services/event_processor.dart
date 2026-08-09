@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart';
 import 'package:crypto/crypto.dart';
 import 'package:device_calendar_plus/device_calendar_plus.dart';
@@ -10,9 +9,11 @@ import 'active_notification_store.dart';
 import 'dismissed_events_store.dart';
 import 'notification_log_store.dart';
 
+// developer.log() doesn't reliably reach plain `adb logcat` without an
+// attached VM service listener; debugPrint() always does (tag 'flutter').
 void _log(String message) {
   if (kDebugMode) {
-    developer.log(message, name: 'AnchorCal');
+    debugPrint('[AnchorCal] $message');
   }
 }
 

@@ -78,6 +78,8 @@ class _DebugLogScreenState extends State<DebugLogScreen> {
         return Colors.red;
       case NotificationEventType.skippedActive:
         return Colors.teal;
+      case NotificationEventType.diagnostic:
+        return Colors.brown;
     }
   }
 
@@ -97,6 +99,8 @@ class _DebugLogScreenState extends State<DebugLogScreen> {
         return Icons.cancel;
       case NotificationEventType.skippedActive:
         return Icons.notifications_paused;
+      case NotificationEventType.diagnostic:
+        return Icons.bug_report;
     }
   }
 

@@ -1,4 +1,3 @@
-import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:awesome_notifications/awesome_notifications.dart';
@@ -15,9 +14,11 @@ import 'settings_service.dart';
 import 'event_processor.dart';
 import 'notification_log_store.dart';
 
+// developer.log() doesn't reliably reach plain `adb logcat` without an
+// attached VM service listener; debugPrint() always does (tag 'flutter').
 void _log(String message) {
   if (kDebugMode) {
-    developer.log(message, name: 'AnchorCal.Action');
+    debugPrint('[AnchorCal.Action] $message');
   }
 }
 
@@ -227,10 +228,40 @@ class EventMonitorService {
     String? eventTitle,
   }) async {
     _log('DISMISS hash=${eventHash.substring(0, 8)} notifId=$notificationId');
+
+    // Diagnostic: confirm whether cancel() actually removes the plugin's own
+    // persisted schedule row (the row RefreshSchedulesReceiver replays on
+    // boot/reinstall if it survives). Only queried when a schedule existed
+    // to begin with, to avoid extra method-channel calls on every dismiss.
+    bool hadSchedule = false;
+    if (notificationId != null) {
+      final before = await AwesomeNotifications().listScheduledNotifications();
+      hadSchedule = before.any((n) => n.content?.id == notificationId);
+    }
+
     await _dismissedStore.dismiss(eventHash, eventEnd);
     if (notificationId != null) {
       await AwesomeNotifications().cancel(notificationId);
     }
+
+    if (hadSchedule && notificationId != null) {
+      final after = await AwesomeNotifications().listScheduledNotifications();
+      final stillScheduled = after.any((n) => n.content?.id == notificationId);
+      _log(
+        'DIAGNOSTIC: schedule row for $notificationId '
+        '${stillScheduled ? "SURVIVED cancel()!" : "removed by cancel()"}',
+      );
+      await NotificationLogStore.instance.log(
+        eventType: NotificationEventType.diagnostic,
+        eventTitle: eventTitle ?? 'Unknown Event',
+        eventHash: eventHash,
+        notificationId: notificationId,
+        extra: stillScheduled
+            ? 'WARNING: schedule row survived cancel()'
+            : 'schedule row removed by cancel()',
+      );
+    }
+
     // Keep hash in ActiveNotificationStore as a cross-isolate safety net.
     // The background WorkManager refresh runs in a separate isolate and may
     // not yet see the DismissedEventsStore write. The active hash prevents

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart';
 import 'package:device_calendar_plus/device_calendar_plus.dart';
 import 'package:awesome_notifications/awesome_notifications.dart';
@@ -10,9 +9,11 @@ import 'event_processor.dart';
 import 'settings_service.dart';
 import 'notification_log_store.dart';
 
+// developer.log() doesn't reliably reach plain `adb logcat` without an
+// attached VM service listener; debugPrint() always does (tag 'flutter').
 void _log(String message) {
   if (kDebugMode) {
-    developer.log(message, name: 'AnchorCal');
+    debugPrint('[AnchorCal] $message');
   }
 }
 
@@ -164,6 +165,26 @@ class CalendarRefreshService {
     final completer = Completer<void>();
     _activeRefresh = completer.future;
     try {
+      // Diagnostic: snapshot of schedule rows still present in the OS plugin
+      // right as this refresh starts. Lets us confirm/refute whether a
+      // dismissed notification's schedule survives to a boot/reinstall
+      // replay by awesome_notifications' native RefreshSchedulesReceiver.
+      final snapshot = await AwesomeNotifications()
+          .listScheduledNotifications();
+      final snapshotIds = snapshot
+          .map((n) => n.content?.id)
+          .whereType<int>()
+          .toList();
+      _log(
+        'fullRefresh start: ${snapshotIds.length} schedule rows present: $snapshotIds',
+      );
+      await NotificationLogStore.instance.log(
+        eventType: NotificationEventType.diagnostic,
+        eventTitle: 'fullRefresh snapshot',
+        eventHash: 'diagnostic',
+        extra: 'scheduledIds=$snapshotIds',
+      );
+
       final validHashes = await refreshNotifications();
       // Only cancel orphans if calendar retrieval succeeded (null = error)
       if (validHashes != null) {

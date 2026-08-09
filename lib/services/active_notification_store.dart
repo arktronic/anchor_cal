@@ -1,12 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+// developer.log() doesn't reliably reach plain `adb logcat` without an
+// attached VM service listener; debugPrint() always does (tag 'flutter').
 void _log(String message) {
   if (kDebugMode) {
-    developer.log(message, name: 'AnchorCal.Store');
+    debugPrint('[AnchorCal.Store] $message');
   }
 }
 
